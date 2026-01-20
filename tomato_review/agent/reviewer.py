@@ -5,6 +5,7 @@ via SearcherAgent, and generates comprehensive markdown reports.
 Uses LLM reasoning through ReActAgent framework.
 """
 
+import os
 import re
 import subprocess
 import threading
@@ -1255,6 +1256,7 @@ Format your response as a detailed markdown report."""
             # Set up file logger for this file
             normalized_name = normalize_filename(file_path)
             log_file_path = self._tomato_dirs["logs"] / f"{file_path}.log"
+            os.makedirs(os.path.dirname(log_file_path), exist_ok=True)
             file_logger = setup_file_logger(log_file_path, f"tomato_review_{normalized_name}")
             self._file_loggers[file_path] = file_logger
 
@@ -1279,8 +1281,9 @@ Format your response as a detailed markdown report."""
             if file_report.get("report"):
                 try:
                     # Use normalized filename for review
-                    review_filename = f"{file_path}.md"
+                    review_filename = f"{file_path}-report.md"
                     report_file_path = self._tomato_dirs["reviews"] / review_filename
+                    os.makedirs(os.path.dirname(report_file_path), exist_ok=True)
 
                     with open(report_file_path, "w", encoding="utf-8") as f:
                         f.write(file_report["report"])
