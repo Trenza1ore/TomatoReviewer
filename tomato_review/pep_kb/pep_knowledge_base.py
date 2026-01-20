@@ -13,7 +13,7 @@ from openjiuwen.core.retrieval.common.config import (
     VectorStoreConfig,
 )
 from openjiuwen.core.retrieval.common.document import Document
-from openjiuwen.core.retrieval.embedding.api_embedding import APIEmbedding
+from openjiuwen.core.retrieval import OpenAIEmbedding
 from openjiuwen.core.retrieval.indexing.indexer.milvus_indexer import MilvusIndexer
 from openjiuwen.core.retrieval.indexing.processor.chunker.chunking import TextChunker
 from openjiuwen.core.retrieval.indexing.processor.parser.auto_file_parser import AutoFileParser
@@ -89,7 +89,7 @@ class PEPKnowledgeBase:
             api_key=embedding_api_key,
             base_url=embedding_base_url,
         )
-        self.embed_model = APIEmbedding(
+        self.embed_model = OpenAIEmbedding(
             config=embedding_config,
             max_retries=10,
             timeout=60,
