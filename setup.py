@@ -47,7 +47,7 @@ setup(
             "tomato-review=tomato_review.cli:cli_entry",
         ],
     },
-    include_package_data=any(PACKAGE_DATA.values()),
+    include_package_data=False,
     package_data=PACKAGE_DATA,
     classifiers=CLASSIFIERS,
 )

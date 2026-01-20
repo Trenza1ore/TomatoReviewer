@@ -9,7 +9,7 @@ authors = [
 ]
 dependencies = [
     "filelock>=3.10.2",
-    "openjiuwen @ git+https://gitcode.com/openJiuwen/agent-core.git@7e7c427074b4cb823173943512d7ff797be5dd84",
+    "openjiuwen @ git+https://gitcode.com/openJiuwen/agent-core.git@0a078c57ef4c1f657653a2165cab64e6556de296",
 ]
 classifiers = [
     "Development Status :: 3 - Alpha",
@@ -18,7 +18,6 @@ classifiers = [
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
-    "Programming Language :: Python :: 3.14",
 ]
 
 [project.scripts]

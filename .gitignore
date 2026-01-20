@@ -105,3 +105,9 @@ venv.bak/
 
 # tomato reviewer output
 tomato/
+
+# tomato reviewer cache
+tomato_review/*.pkl
+
+# tomato reviewer file lock
+tomato_review/*.lock

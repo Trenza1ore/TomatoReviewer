@@ -6,7 +6,7 @@ Python code review agent using pylint and PEP knowledge base.
 
 With `pip`:
 ```bash
-uv pip install git+https://gitcode.com/SushiNinja/TomatoReviewer.git@main
+pip install git+https://gitcode.com/SushiNinja/TomatoReviewer.git@main
 ```
 
 Same with `uv`:
