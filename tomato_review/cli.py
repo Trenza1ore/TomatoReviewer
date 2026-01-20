@@ -146,7 +146,7 @@ Examples:
 
     parser.add_argument(
         "files",
-        nargs="+",
+        nargs="*",
         help="Python files or glob patterns to review (e.g., *.py, file1.py file2.py)",
     )
 
@@ -173,9 +173,9 @@ Examples:
     )
 
     parser.add_argument(
-        "--rebuild",
+        "--build",
         action="store_true",
-        help="Rebuilds Knowledge Base even if it exists",
+        help="Builds Knowledge Base from scratch",
     )
 
     parser.add_argument(
@@ -186,6 +186,8 @@ Examples:
     )
 
     args = parser.parse_args()
+    if not args.build and not args.files:
+        parser.error("files are required unless --build is used")
 
     # Load configuration
     config = load_config()
@@ -229,12 +231,12 @@ Examples:
     # Check and setup knowledge base
     print("Checking knowledge base...")
     is_valid, error, should_continue = check_knowledge_base(kb_config)
-    rebuild_kb = args.rebuild
+    build_kb = args.build
 
-    if rebuild_kb or not is_valid:
-        if rebuild_kb or should_continue:
+    if build_kb or not is_valid:
+        if build_kb or should_continue:
             # KB just needs to be created - offer to create it
-            if rebuild_kb:
+            if build_kb:
                 print("Knowledge base will be rebuilt.")
                 response = "y"
             else:
@@ -273,7 +275,7 @@ Examples:
             from tomato_review.pep_kb.pep_knowledge_base import create_pep_knowledge_base
 
             pep_kb = await create_pep_knowledge_base(**kb_config)
-            print("Updating changed PEPs...")
+            print("Getting latest PEPs...")
             stats = await pep_kb.update_changed_peps(filter_status=True)
             if stats["updated"] or stats["added"]:
                 print(f"✓ Updated: {len(stats['updated'])} PEPs, Added: {len(stats['added'])} PEPs")
