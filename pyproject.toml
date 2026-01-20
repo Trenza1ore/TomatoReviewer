@@ -1,6 +1,6 @@
 [project]
 name = "tomato-review"
-version = "0.1.1"
+version = "0.1.2"
 description = "Python code review agent using pylint and PEP knowledge base"
 readme = "TomatoReviewer.md"
 requires-python = ">=3.11"
