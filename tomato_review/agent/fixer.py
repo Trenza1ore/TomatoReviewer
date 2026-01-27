@@ -192,7 +192,7 @@ Be precise and careful - don't break working code. When in doubt, preserve the o
                 Success message
             """
             with open(file_path, "w", encoding="utf-8") as f:
-                f.write(content)
+                f.write(content.strip() + "\n")
             return f"Successfully wrote {len(content)} characters to {file_path}"
 
         # Tool: Run pylint
@@ -1146,7 +1146,7 @@ Important:
 
                 # Write fixed content back to original file (in place)
                 with open(file_path, "w", encoding="utf-8") as f:
-                    f.write(fixed_content)
+                    f.write(fixed_content.strip() + "\n")
 
                 # Format the file with ruff (in place)
                 ruff_format_result = await self._run_ruff_format(file_path)
