@@ -13,6 +13,7 @@ import glob
 import os
 import shutil
 import signal
+import subprocess
 import sys
 import warnings
 from pathlib import Path
@@ -71,6 +72,48 @@ def signal_handler(signum, frame):  # noqa: ARG001
 
     print("Cleanup complete.", file=sys.stderr)
     sys.exit(130)
+
+
+def check_required_tools():
+    """Check if required tools (pylint and mypy) are installed.
+
+    Raises:
+        SystemExit: If any required tool is not installed
+    """
+    missing_tools = []
+
+    # Check pylint
+    try:
+        result = subprocess.run(
+            ["pylint", "--version"],
+            capture_output=True,
+            timeout=5,
+            check=False,
+        )
+        if result.returncode != 0:
+            missing_tools.append("pylint")
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        missing_tools.append("pylint")
+
+    # Check mypy
+    try:
+        result = subprocess.run(
+            ["mypy", "--version"],
+            capture_output=True,
+            timeout=5,
+            check=False,
+        )
+        if result.returncode != 0:
+            missing_tools.append("mypy")
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        missing_tools.append("mypy")
+
+    if missing_tools:
+        print(f"\n❌ Error: Required tools are not installed: {', '.join(missing_tools)}", file=sys.stderr)
+        print("\nPlease install the missing tools:", file=sys.stderr)
+        for tool in missing_tools:
+            print(f"  pip install {tool}", file=sys.stderr)
+        sys.exit(1)
 
 
 def expand_file_patterns(patterns: List[str]) -> List[str]:
@@ -191,6 +234,9 @@ Examples:
     args = parser.parse_args()
     if not args.build and not args.files:
         parser.error("files are required unless --build is used")
+
+    # Check required tools (pylint and mypy)
+    check_required_tools()
 
     # Load configuration
     config = load_config()

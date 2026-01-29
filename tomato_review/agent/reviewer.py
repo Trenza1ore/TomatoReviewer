@@ -12,14 +12,14 @@ import threading
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from tqdm import tqdm
-
 from openjiuwen.core.common.exception.exception import JiuWenBaseException
 from openjiuwen.core.foundation.llm import ToolCall, ToolMessage
 from openjiuwen.core.foundation.tool import tool
 from openjiuwen.core.session.session import Session
 from openjiuwen.core.single_agent.agents.react_agent import ReActAgent, ReActAgentConfig
 from openjiuwen.core.single_agent.schema.agent_card import AgentCard
+from tqdm import tqdm
+
 from tomato_review import DEBUG_MODE
 from tomato_review.agent.fixer import FixerAgent
 from tomato_review.agent.searcher import SearcherAgent
@@ -28,7 +28,10 @@ from tomato_review.agent.utils import (
     backup_file,
     configure_from_env,
     extract_reasoning_content,
+    get_mypy_config_path,
+    get_pylint_config_path,
     normalize_filename,
+    parse_mypy_output,
     parse_pylint_output,
     setup_file_logger,
     setup_tomato_directories,
@@ -192,6 +195,22 @@ Be thorough, accurate, and focus on Python best practices."""
             errors = result.get("errors", [])
             return json.dumps({"errors": errors, "count": len(errors)}, indent=2)
 
+        # Tool: Run mypy
+        async def run_mypy(file_path: str) -> str:
+            """Run mypy type checker on a Python file and return parsed errors.
+
+            Args:
+                file_path: Path to the Python file to check
+
+            Returns:
+                JSON string with errors list, each error has: file, line, column, type, code, message, symbol
+            """
+            import json
+
+            result = await agent_instance.run_mypy_tool(file_path)
+            errors = result.get("errors", [])
+            return json.dumps({"errors": errors, "count": len(errors)}, indent=2)
+
         # Tool: Read file context
         async def read_file_context(file_path: str, line_num: int, context_lines: int = 3) -> str:
             """Read file content with context around a specific line.
@@ -244,6 +263,16 @@ Be thorough, accurate, and focus on Python best practices."""
             },
         )(run_pylint)
 
+        mypy_tool = tool(
+            name="run_mypy",
+            description="Run mypy type checker on a Python file to find type errors and type-related issues.",
+            input_params={
+                "type": "object",
+                "properties": {"file_path": {"type": "string", "description": "Path to the Python file to analyze"}},
+                "required": ["file_path"],
+            },
+        )(run_mypy)
+
         read_tool = tool(
             name="read_file_context",
             description="Read a file with context around a specific line number. Useful for understanding code context when analyzing errors.",
@@ -280,11 +309,13 @@ Be thorough, accurate, and focus on Python best practices."""
 
         # Store tool instances for local execution
         self._local_tools["run_pylint"] = pylint_tool
+        self._local_tools["run_mypy"] = mypy_tool
         self._local_tools["read_file_context"] = read_tool
         self._local_tools["search_peps"] = search_tool
 
         # Register tool cards
         self.add_ability(pylint_tool.card)
+        self.add_ability(mypy_tool.card)
         self.add_ability(read_tool.card)
         self.add_ability(search_tool.card)
 
@@ -336,6 +367,10 @@ Be thorough, accurate, and focus on Python best practices."""
         """Public method for running pylint (used by tools)."""
         return await self._run_pylint(file_path)
 
+    async def run_mypy_tool(self, file_path: str) -> Dict[str, Any]:
+        """Public method for running mypy (used by tools)."""
+        return await self._run_mypy(file_path)
+
     def read_file_context_tool(self, file_path: str, line_num: int, context_lines: int = 3) -> Dict[str, Any]:
         """Public method for reading file context (used by tools)."""
         return self._read_file_context(file_path, line_num, context_lines)
@@ -350,8 +385,6 @@ Be thorough, accurate, and focus on Python best practices."""
             Dict with 'stdout', 'stderr', 'returncode', and parsed 'errors'
         """
         try:
-            from tomato_review.agent.utils import get_pylint_config_path
-
             # Get pylint config file path
             pylint_config = get_pylint_config_path()
 
@@ -396,6 +429,64 @@ Be thorough, accurate, and focus on Python best practices."""
             return {
                 "stdout": "",
                 "stderr": f"Error running pylint: {str(e)}",
+                "returncode": -1,
+                "errors": [],
+            }
+
+    async def _run_mypy(self, file_path: str) -> Dict[str, Any]:
+        """Run mypy on a file and return results.
+
+        Args:
+            file_path: Path to the Python file
+
+        Returns:
+            Dict with 'stdout', 'stderr', 'returncode', and parsed 'errors'
+        """
+        try:
+            # Get mypy config file path
+            mypy_config = get_mypy_config_path()
+
+            # Build mypy command
+            cmd = ["mypy", file_path, "--show-error-codes", "--no-error-summary"]
+            if mypy_config:
+                cmd.extend(["--config-file", mypy_config])
+
+            # Run mypy
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=60,
+                check=False,  # Don't raise exception on non-zero exit
+            )
+
+            # Parse errors from output
+            errors = parse_mypy_output(result.stdout)
+
+            return {
+                "stdout": result.stdout,
+                "stderr": result.stderr,
+                "returncode": result.returncode,
+                "errors": errors,
+            }
+        except subprocess.TimeoutExpired:
+            return {
+                "stdout": "",
+                "stderr": "mypy execution timed out",
+                "returncode": -1,
+                "errors": [],
+            }
+        except FileNotFoundError:
+            return {
+                "stdout": "",
+                "stderr": "mypy not found. Please install mypy: pip install mypy",
+                "returncode": -1,
+                "errors": [],
+            }
+        except Exception as e:
+            return {
+                "stdout": "",
+                "stderr": f"Error running mypy: {str(e)}",
                 "returncode": -1,
                 "errors": [],
             }

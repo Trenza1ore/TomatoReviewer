@@ -1,6 +1,6 @@
 [project]
 name = "tomato-review"
-version = "0.1.3"
+version = "0.1.4"
 description = "Python code review agent using pylint and PEP knowledge base"
 readme = "TomatoReviewer.md"
 requires-python = ">=3.11"
@@ -31,7 +31,7 @@ build-backend = "setuptools.build_meta"
 packages = ["tomato_review", "tomato_review.agent", "tomato_review.pep_kb"]
 
 [tool.setuptools.package-data]
-"tomato_review" = ["version.txt", ".pylintrc"]
+"tomato_review" = ["version.txt", ".pylintrc", ".mypy.ini"]
 
 # Formatting & Linting
 [tool.ruff]

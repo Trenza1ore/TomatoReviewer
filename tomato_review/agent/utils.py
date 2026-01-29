@@ -262,24 +262,23 @@ def get_pylint_config_path() -> Optional[str]:
     """
     cwd = Path.cwd()
 
-    # Check for .pylintrc in cwd
-    pylintrc_path = cwd / ".pylintrc"
-    if pylintrc_path.exists() and pylintrc_path.is_file():
-        return str(pylintrc_path.absolute())
+    # Check for pylintrc or .pylintrc in cwd
+    for filename in ["pylintrc", ".pylintrc", "pyproject"]:
+        pylintrc_path = cwd / filename
+        if pylintrc_path.exists() and pylintrc_path.is_file():
+            return
 
-    # Check for pyproject.toml in cwd with pylint config
-    pyproject_path = cwd / "pyproject.toml"
-    if pyproject_path.exists() and pyproject_path.is_file():
-        try:
-            # Check if pyproject.toml contains [tool.pylint] section
-            content = pyproject_path.read_text(encoding="utf-8")
-            if "[tool.pylint]" in content or '["tool.pylint"]' in content:
-                # pylint auto-detects pyproject.toml, so we don't need --rcfile
-                # Return None to indicate pylint should auto-detect
-                return None
-        except Exception:
-            # If we can't read the file, continue to fallback
-            pass
+        # Check for pyproject.toml in cwd with pylint config
+        toml_path = cwd / f"{filename}.toml"
+        if toml_path.exists() and toml_path.is_file():
+            try:
+                # Check if pyproject.toml contains [tool.pylint] section
+                content = toml_path.read_text(encoding="utf-8")
+                if "[tool.pylint]" in content or '["tool.pylint"]' in content:
+                    return
+            except Exception:
+                # If we can't read the file, continue to fallback
+                pass
 
     # Fallback to default pylintrc in tomato_review package
     from tomato_review import PYLINT_FALLBACK
@@ -287,5 +286,91 @@ def get_pylint_config_path() -> Optional[str]:
     if PYLINT_FALLBACK.exists():
         return str(PYLINT_FALLBACK)
 
-    # No config file found, return None (pylint will use defaults)
-    return None
+
+def parse_mypy_output(output: str) -> List[Dict[str, str]]:
+    """Parse mypy output into structured error list.
+
+    Args:
+        output: mypy stdout text
+
+    Returns:
+        List of error dicts with 'file', 'line', 'column', 'type', 'code', 'message', 'symbol'
+
+    Example:
+        Input: "test.py:4: error: Incompatible return type \"str\" (got \"int\")  [return-value]"
+        Output: [{
+            "file": "test.py",
+            "line": 4,
+            "column": 0,
+            "type": "error",
+            "code": "return-value",
+            "message": "Incompatible return type \"str\" (got \"int\")",
+            "symbol": "return-value"
+        }]
+    """
+    errors = []
+
+    # Pattern: file:line:column: type: message [code]
+    # Example: test.py:4: error: Incompatible return type "str" (got "int")  [return-value]
+    pattern = r"^(.+?):(\d+):(?:\d+:)?\s+(error|note|warning):\s+(.+?)(?:\s+\[([A-Za-z0-9_\-]+)\])?$"
+
+    for line in output.splitlines():
+        # Skip empty lines and summary lines
+        if not line.strip() or line.startswith("Found ") or "error" in line.lower() and "found" in line.lower():
+            continue
+
+        match = re.match(pattern, line)
+        if match:
+            file_path_match, line_num, col_num, error_type, message, code = match.groups()
+            errors.append(
+                {
+                    "file": file_path_match,
+                    "line": int(line_num),
+                    "column": int(col_num) if col_num else 0,
+                    "type": error_type,
+                    "code": code or "",
+                    "message": message.strip(),
+                    "symbol": code or "",
+                }
+            )
+
+    return errors
+
+
+def get_mypy_config_path() -> Optional[str]:
+    """Determine the mypy configuration file path for --config-file option.
+
+    Checks for mypy configuration files in the following order:
+    1. .mypy.ini or mypy.ini in current working directory
+    2. pyproject.toml in current working directory (if it contains [tool.mypy] section)
+       Note: mypy auto-detects pyproject.toml, so we return None to let it auto-detect
+    3. Falls back to the default .mypy.ini in tomato_review package
+
+    Returns:
+        Path to mypy config file as string for --config-file option, or None if mypy should auto-detect
+    """
+    cwd = Path.cwd()
+
+    # Check for mypy.ini or .mypy.ini in cwd
+    for filename in ["mypy.ini", ".mypy.ini"]:
+        mypy_ini_path = cwd / filename
+        if mypy_ini_path.exists() and mypy_ini_path.is_file():
+            return
+
+    # Check for pyproject.toml in cwd with mypy config
+    pyproject_path = cwd / "pyproject.toml"
+    if pyproject_path.exists() and pyproject_path.is_file():
+        try:
+            # Check if pyproject.toml contains [tool.mypy] section
+            content = pyproject_path.read_text(encoding="utf-8")
+            if "[tool.mypy]" in content or '["tool.mypy"]' in content:
+                return
+        except Exception:
+            # If we can't read the file, continue to fallback
+            pass
+
+    # Fallback to default .mypy.ini in tomato_review package
+    from tomato_review import MYPY_FALLBACK
+
+    if MYPY_FALLBACK.exists():
+        return str(MYPY_FALLBACK)
