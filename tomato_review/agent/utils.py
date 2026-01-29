@@ -9,6 +9,8 @@ from typing import Dict, List, Optional
 
 from openjiuwen.core.single_agent import ReActAgentConfig
 
+from tomato_review import DEBUG_MODE
+
 
 def parse_pylint_output(output: str) -> List[Dict[str, str]]:
     """Parse pylint output into structured error list.
@@ -316,9 +318,6 @@ def parse_mypy_output(output: str) -> List[Dict[str, str]]:
 
     for line in output.splitlines():
         # Skip empty lines and summary lines
-        if not line.strip() or line.startswith("Found ") or "error" in line.lower() and "found" in line.lower():
-            continue
-
         match = re.match(pattern, line)
         if match:
             file_path_match, line_num, col_num, error_type, message, code = match.groups()
@@ -333,7 +332,8 @@ def parse_mypy_output(output: str) -> List[Dict[str, str]]:
                     "symbol": code or "",
                 }
             )
-
+    if DEBUG_MODE:
+        print(f"mypy {errors=} {output=}")
     return errors
 
 

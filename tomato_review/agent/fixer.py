@@ -137,7 +137,8 @@ When fixing code:
    - Fix naming conventions, docstrings, imports, and style issues
    - Ensure fixes align with the reviewer's recommendations
 5. Use write_file to write the fixed code
-6. Use run_pylint to verify the fixes resolved the issues
+6a. Use run_pylint to verify the fixes resolved the issues
+6b. (Optional) Use run_mypy to verify the fixes resolved the issues
 7. Use run_ruff_format and run_ruff_check_fix to ensure proper formatting
 
 Your fixes should:
@@ -912,7 +913,7 @@ Be precise and careful - don't break working code. When in doubt, preserve the o
             mypy_config = get_mypy_config_path()
 
             # Build mypy command
-            cmd = ["mypy", file_path, "--show-error-codes", "--no-error-summary"]
+            cmd = ["mypy", file_path]
             if mypy_config:
                 cmd.extend(["--config-file", mypy_config])
 
@@ -925,9 +926,9 @@ Be precise and careful - don't break working code. When in doubt, preserve the o
             )
 
             # Parse errors using shared utility function
-            errors = parse_mypy_output(result.stdout)
+            errors = parse_mypy_output("\n".join([result.stdout, result.stderr]))
 
-            return {"errors": errors, "stdout": result.stdout}
+            return {"errors": errors, "stdout": "\n".join([result.stdout, result.stderr])}
         except Exception as e:
             return {"errors": [], "stdout": "", "error": str(e)}
 

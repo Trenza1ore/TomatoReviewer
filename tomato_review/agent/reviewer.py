@@ -158,7 +158,8 @@ class ReviewerAgent(ReActAgent):
         system_prompt = """You are an expert Python code reviewer. Your task is to review Python files for code quality, style, and best practices.
 
 When reviewing a file:
-1. Use run_pylint tool to check for linting errors
+1a. Use run_pylint tool to check for linting errors
+1b. Use run_mypy tool to check for typing errors
 2. For each error, use read_file_context to understand the code around the error
 3. Use search_peps (via searcher_agent) to find relevant PEP guidelines for each error
 4. Analyze the errors and PEP guidelines to propose fixes
@@ -447,7 +448,7 @@ Be thorough, accurate, and focus on Python best practices."""
             mypy_config = get_mypy_config_path()
 
             # Build mypy command
-            cmd = ["mypy", file_path, "--show-error-codes", "--no-error-summary"]
+            cmd = ["mypy", file_path]
             if mypy_config:
                 cmd.extend(["--config-file", mypy_config])
 
@@ -461,7 +462,7 @@ Be thorough, accurate, and focus on Python best practices."""
             )
 
             # Parse errors from output
-            errors = parse_mypy_output(result.stdout)
+            errors = parse_mypy_output("\n".join(result.stdout, result.stderr))
 
             return {
                 "stdout": result.stdout,
@@ -966,7 +967,8 @@ Be thorough, accurate, and focus on Python best practices."""
         user_query = f"""Please review the Python file: {file_path}
 
 Your task:
-1. Use run_pylint tool to check for linting errors
+1a. Use run_pylint tool to check for linting errors
+1b. Use run_mypy tool to check for typing errors
 2. For each error found, use read_file_context to understand the code around the error
 3. Use search_peps to find relevant PEP guidelines for each error
 4. Analyze the errors and PEP guidelines
@@ -992,12 +994,16 @@ Format your response as a detailed markdown report."""
             pylint_result = await self._run_pylint(file_path)
             errors = pylint_result.get("errors", [])
 
+            # Run mypy
+            mypy_result = await self._run_mypy(file_path)
+            mypy_errors = mypy_result.get("errors", [])
+
             # Generate a structured report from LLM output
-            no_issues = "\n\n✅ No issues found by pylint." if not errors else ""
+            no_issues = "\n\n✅ No issues found by pylint or mypy." if not errors and not mypy_errors else ""
             sep = "\n" + "-" * 80 + "\n"
             report = f"# Code Review Report:\n`{file_path}`{no_issues}\n\n{llm_output}"
 
-            if not errors:
+            if not errors and not mypy_errors:
                 return {
                     "file_path": file_path,
                     "errors": [],
@@ -1005,6 +1011,8 @@ Format your response as a detailed markdown report."""
                     "pep_results": {},
                     "proposed_changes": [],
                     "report": report,
+                    "pylint_result": pylint_result,
+                    "mypy_result": mypy_result,
                 }
 
             # Extract proposed changes from LLM output (basic parsing)
@@ -1029,6 +1037,8 @@ Format your response as a detailed markdown report."""
                 "proposed_changes": proposed_changes,
                 "pep_references": pep_refs,
                 "report": report,
+                "pylint_result": pylint_result,
+                "mypy_result": mypy_result,
             }
         except JiuWenBaseException:
             raise
@@ -1106,14 +1116,20 @@ Format your response as a detailed markdown report."""
         pylint_result = await self._run_pylint(file_path)
         errors = pylint_result.get("errors", [])
 
-        if not errors:
+        # Run mypy
+        mypy_result = await self._run_mypy(file_path)
+        mypy_errors = mypy_result.get("errors", [])
+
+        if not errors and not mypy_errors:
             return {
                 "file_path": file_path,
                 "errors": [],
                 "questions": [],
                 "pep_results": {},
                 "proposed_changes": [],
-                "report": f"# Code Review Report: {file_path}\n\n✅ No issues found by pylint.",
+                "pylint_result": pylint_result,
+                "mypy_result": mypy_result,
+                "report": f"# Code Review Report: {file_path}\n\n✅ No issues found by pylint or mypy.",
             }
 
         # Read file content for context
@@ -1201,6 +1217,8 @@ Format your response as a detailed markdown report."""
             "proposed_changes": proposed_changes,
             "report": report,
             "pep_references": unique_all_pep_refs,
+            "pylint_result": pylint_result,
+            "mypy_result": mypy_result,
         }
 
     def _generate_markdown_report(
@@ -1331,6 +1349,18 @@ Format your response as a detailed markdown report."""
         final_fixed_file_path = None
         last_review_errors = initial_review.get("errors", [])
 
+        # Log initial review mypy and pylint usage
+        if file_logger:
+            initial_pylint_result = initial_review.get("pylint_result", {})
+            initial_mypy_result = initial_review.get("mypy_result", {})
+            initial_pylint_errors = initial_pylint_result.get("errors", [])
+            initial_mypy_errors = initial_mypy_result.get("errors", [])
+            file_logger.info(
+                "Initial review: pylint found %d issues, mypy found %d issues",
+                len(initial_pylint_errors),
+                len(initial_mypy_errors),
+            )
+
         while iteration < self.max_iterations:
             with self.lock:
                 self.pbar.update(self.pbar_unit)
@@ -1378,6 +1408,19 @@ Format your response as a detailed markdown report."""
                 # State: REVIEW - Review the fixed file
                 try:
                     fixed_review = await self._review_file(fixed_file_path_str)
+
+                    # Log mypy and pylint usage
+                    if file_logger:
+                        pylint_result = fixed_review.get("pylint_result", {})
+                        mypy_result = fixed_review.get("mypy_result", {})
+                        pylint_errors = pylint_result.get("errors", [])
+                        mypy_errors = mypy_result.get("errors", [])
+                        file_logger.info(
+                            "Iteration %d: Review completed - pylint found %d issues, mypy found %d issues",
+                            iteration,
+                            len(pylint_errors),
+                            len(mypy_errors),
+                        )
                 except Exception as e:
                     # If review fails (e.g., PEP search error), stop the cycle
                     if file_logger:

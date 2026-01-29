@@ -30,6 +30,7 @@ from openjiuwen import __version__ as jiuwen_version
 from openjiuwen.core.foundation.llm.model import Model
 from openjiuwen.core.foundation.llm.schema.config import ModelClientConfig, ModelRequestConfig
 
+from tomato_review import __version__
 from tomato_review.agent import ReviewerAgent, SearcherAgent
 from tomato_review.agent.utils import setup_tomato_directories
 from tomato_review.config import get_kb_config, get_llm_config, load_config
@@ -173,6 +174,7 @@ def expand_file_patterns(patterns: List[str]) -> List[str]:
 
 async def main():
     """Main CLI entry point."""
+    print(f"Tomato Reviewer version: {__version__}")
     print(f"Using openJiuwen version: {jiuwen_version}")
 
     # Set up signal handler for cleanup
@@ -483,6 +485,7 @@ Examples:
 
             for i in range(0, len(files), args.mini_batch):
                 j = i + args.mini_batch
+                _cleanup_state["modified_files"].update(files[i:j])
                 result = await reviewer.invoke({"files": files[i:j]})
 
                 # Check for errors in result
