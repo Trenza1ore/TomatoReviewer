@@ -12,15 +12,21 @@ import threading
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from tqdm import tqdm
-
 from openjiuwen.core.foundation.llm import ToolCall, ToolMessage
 from openjiuwen.core.foundation.tool import tool
 from openjiuwen.core.session.session import Session
 from openjiuwen.core.single_agent.agents.react_agent import ReActAgent, ReActAgentConfig
 from openjiuwen.core.single_agent.schema.agent_card import AgentCard
+from tqdm import tqdm
+
 from tomato_review.agent.session import AgentSession
-from tomato_review.agent.utils import configure_from_env, parse_pylint_output
+from tomato_review.agent.utils import (
+    configure_from_env,
+    get_mypy_config_path,
+    get_pylint_config_path,
+    parse_mypy_output,
+    parse_pylint_output,
+)
 
 
 class FixerAgent(ReActAgent):
@@ -131,7 +137,8 @@ When fixing code:
    - Fix naming conventions, docstrings, imports, and style issues
    - Ensure fixes align with the reviewer's recommendations
 5. Use write_file to write the fixed code
-6. Use run_pylint to verify the fixes resolved the issues
+6a. Use run_pylint to verify the fixes resolved the issues
+6b. (Optional) Use run_mypy to verify the fixes resolved the issues
 7. Use run_ruff_format and run_ruff_check_fix to ensure proper formatting
 
 Your fixes should:
@@ -208,6 +215,22 @@ Be precise and careful - don't break working code. When in doubt, preserve the o
             import json
 
             result = await agent_instance.run_pylint_tool(file_path)
+            errors = result.get("errors", [])
+            return json.dumps({"errors": errors, "count": len(errors)}, indent=2)
+
+        # Tool: Run mypy
+        async def run_mypy(file_path: str) -> str:
+            """Run mypy type checker on a file to check for type errors.
+
+            Args:
+                file_path: Path to the file to check
+
+            Returns:
+                JSON string with errors
+            """
+            import json
+
+            result = await agent_instance.run_mypy_tool(file_path)
             errors = result.get("errors", [])
             return json.dumps({"errors": errors, "count": len(errors)}, indent=2)
 
@@ -308,6 +331,16 @@ Be precise and careful - don't break working code. When in doubt, preserve the o
             },
         )(run_pylint)
 
+        mypy_tool = tool(
+            name="run_mypy",
+            description="Run mypy type checker to check for type errors after applying fixes.",
+            input_params={
+                "type": "object",
+                "properties": {"file_path": {"type": "string", "description": "Path to the file to check"}},
+                "required": ["file_path"],
+            },
+        )(run_mypy)
+
         ruff_format_tool = tool(
             name="run_ruff_format",
             description="Format a Python file using ruff format.",
@@ -353,6 +386,7 @@ Be precise and careful - don't break working code. When in doubt, preserve the o
         self._local_tools["read_file_context"] = read_context_tool
         self._local_tools["write_file"] = write_tool
         self._local_tools["run_pylint"] = pylint_tool
+        self._local_tools["run_mypy"] = mypy_tool
         self._local_tools["run_ruff_format"] = ruff_format_tool
         self._local_tools["run_ruff_check_fix"] = ruff_fix_tool
         self._local_tools["run_code"] = run_code_tool
@@ -362,6 +396,7 @@ Be precise and careful - don't break working code. When in doubt, preserve the o
         self.add_ability(read_context_tool.card)
         self.add_ability(write_tool.card)
         self.add_ability(pylint_tool.card)
+        self.add_ability(mypy_tool.card)
         self.add_ability(ruff_format_tool.card)
         self.add_ability(ruff_fix_tool.card)
         self.add_ability(run_code_tool.card)
@@ -409,6 +444,10 @@ Be precise and careful - don't break working code. When in doubt, preserve the o
     async def run_pylint_tool(self, file_path: str) -> Dict[str, Any]:
         """Public method for running pylint (used by tools)."""
         return await self._run_pylint(file_path)
+
+    async def run_mypy_tool(self, file_path: str) -> Dict[str, Any]:
+        """Public method for running mypy (used by tools)."""
+        return await self._run_mypy(file_path)
 
     async def run_ruff_format_tool(self, file_path: str) -> Dict[str, Any]:
         """Public method for running ruff format (used by tools)."""
@@ -837,8 +876,6 @@ Be precise and careful - don't break working code. When in doubt, preserve the o
             Dict with 'errors' list
         """
         try:
-            from tomato_review.agent.utils import get_pylint_config_path
-
             # Get pylint config file path
             pylint_config = get_pylint_config_path()
 
@@ -859,6 +896,39 @@ Be precise and careful - don't break working code. When in doubt, preserve the o
             errors = parse_pylint_output(result.stdout)
 
             return {"errors": errors, "stdout": result.stdout}
+        except Exception as e:
+            return {"errors": [], "stdout": "", "error": str(e)}
+
+    async def _run_mypy(self, file_path: str) -> Dict[str, Any]:
+        """Run mypy on a file and return parsed errors.
+
+        Args:
+            file_path: Path to the Python file
+
+        Returns:
+            Dict with 'errors' list
+        """
+        try:
+            # Get mypy config file path
+            mypy_config = get_mypy_config_path()
+
+            # Build mypy command
+            cmd = ["mypy", file_path]
+            if mypy_config:
+                cmd.extend(["--config-file", mypy_config])
+
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=60,
+                check=False,
+            )
+
+            # Parse errors using shared utility function
+            errors = parse_mypy_output("\n".join([result.stdout, result.stderr]))
+
+            return {"errors": errors, "stdout": "\n".join([result.stdout, result.stderr])}
         except Exception as e:
             return {"errors": [], "stdout": "", "error": str(e)}
 

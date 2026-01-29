@@ -13,6 +13,7 @@ import glob
 import os
 import shutil
 import signal
+import subprocess
 import sys
 import warnings
 from pathlib import Path
@@ -29,6 +30,7 @@ from openjiuwen import __version__ as jiuwen_version
 from openjiuwen.core.foundation.llm.model import Model
 from openjiuwen.core.foundation.llm.schema.config import ModelClientConfig, ModelRequestConfig
 
+from tomato_review import __version__
 from tomato_review.agent import ReviewerAgent, SearcherAgent
 from tomato_review.agent.utils import setup_tomato_directories
 from tomato_review.config import get_kb_config, get_llm_config, load_config
@@ -71,6 +73,48 @@ def signal_handler(signum, frame):  # noqa: ARG001
 
     print("Cleanup complete.", file=sys.stderr)
     sys.exit(130)
+
+
+def check_required_tools():
+    """Check if required tools (pylint and mypy) are installed.
+
+    Raises:
+        SystemExit: If any required tool is not installed
+    """
+    missing_tools = []
+
+    # Check pylint
+    try:
+        result = subprocess.run(
+            ["pylint", "--version"],
+            capture_output=True,
+            timeout=5,
+            check=False,
+        )
+        if result.returncode != 0:
+            missing_tools.append("pylint")
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        missing_tools.append("pylint")
+
+    # Check mypy
+    try:
+        result = subprocess.run(
+            ["mypy", "--version"],
+            capture_output=True,
+            timeout=5,
+            check=False,
+        )
+        if result.returncode != 0:
+            missing_tools.append("mypy")
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        missing_tools.append("mypy")
+
+    if missing_tools:
+        print(f"\n❌ Error: Required tools are not installed: {', '.join(missing_tools)}", file=sys.stderr)
+        print("\nPlease install the missing tools:", file=sys.stderr)
+        for tool in missing_tools:
+            print(f"  pip install {tool}", file=sys.stderr)
+        sys.exit(1)
 
 
 def expand_file_patterns(patterns: List[str]) -> List[str]:
@@ -130,6 +174,7 @@ def expand_file_patterns(patterns: List[str]) -> List[str]:
 
 async def main():
     """Main CLI entry point."""
+    print(f"Tomato Reviewer version: {__version__}")
     print(f"Using openJiuwen version: {jiuwen_version}")
 
     # Set up signal handler for cleanup
@@ -191,6 +236,9 @@ Examples:
     args = parser.parse_args()
     if not args.build and not args.files:
         parser.error("files are required unless --build is used")
+
+    # Check required tools (pylint and mypy)
+    check_required_tools()
 
     # Load configuration
     config = load_config()
@@ -437,6 +485,7 @@ Examples:
 
             for i in range(0, len(files), args.mini_batch):
                 j = i + args.mini_batch
+                _cleanup_state["modified_files"].update(files[i:j])
                 result = await reviewer.invoke({"files": files[i:j]})
 
                 # Check for errors in result
