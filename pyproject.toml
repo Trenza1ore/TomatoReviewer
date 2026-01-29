@@ -1,6 +1,6 @@
 [project]
 name = "tomato-review"
-version = "0.1.2"
+version = "0.1.3"
 description = "Python code review agent using pylint and PEP knowledge base"
 readme = "TomatoReviewer.md"
 requires-python = ">=3.11"
@@ -9,7 +9,7 @@ authors = [
 ]
 dependencies = [
     "filelock>=3.10.2",
-    "openjiuwen @ git+https://gitcode.com/openJiuwen/agent-core.git@0a078c57ef4c1f657653a2165cab64e6556de296",
+    "openjiuwen @ git+https://gitcode.com/openJiuwen/agent-core.git@062f11e2b398244a030b83343dcbe85ac2fbddf0",
 ]
 classifiers = [
     "Development Status :: 3 - Alpha",
@@ -31,7 +31,7 @@ build-backend = "setuptools.build_meta"
 packages = ["tomato_review", "tomato_review.agent", "tomato_review.pep_kb"]
 
 [tool.setuptools.package-data]
-"tomato_review" = ["version.txt"]
+"tomato_review" = ["version.txt", ".pylintrc"]
 
 # Formatting & Linting
 [tool.ruff]

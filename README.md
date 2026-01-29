@@ -1,4 +1,5 @@
 # TomatoReviewer
+**Source Code**: https://gitcode.com/SushiNinja/TomatoReviewer
 
 **TomatoReviewer** is an intelligent Python code review tool that combines static analysis with LLM-powered reasoning to provide comprehensive code reviews and automatic fixes based on Python Enhancement Proposals (PEPs).
 
@@ -7,9 +8,9 @@
 
 ## Overview
 
-TomatoReviewer uses a multi-agent architecture powered by Large Language Models (LLMs) to review Python code, identify issues, and automatically apply fixes. Unlike traditional linters, it leverages a PEP knowledge base built on [openjiuwen's knowledge base framework](https://gitcode.com/openJiuwen/agent-core) to provide context-aware recommendations that align with Python best practices.
+TomatoReviewer uses a multi-agent architecture powered by Large Language Models (LLMs) to review Python code, identify issues, and automatically apply fixes. Unlike traditional linters, it leverages a PEP knowledge base built on [openJiuwen's knowledge base framework](https://gitcode.com/openJiuwen/agent-core) to provide context-aware recommendations that align with Python best practices.
 
-This project serves as a reference implementation, demonstrating how to build an automatically updatable and maintainable knowledge base system. By integrating the openjiuwen knowledge base framework, we have implemented automated indexing, retrieval, and application of Python PEP documents, providing developers with a complete knowledge base application example. We hope this project can serve as a catalyst, inspiring more developers to build their own knowledge base applications based on the openjiuwen knowledge base framework, exploring more possibilities for knowledge bases in scenarios such as code review, document retrieval, and intelligent Q&A, and promoting the wider adoption of knowledge base technology in software development toolchains.
+This project serves as a reference implementation, demonstrating how to build an automatically updatable and maintainable knowledge base system. By integrating the openJiuwen knowledge base framework, we have implemented automated indexing, retrieval, and application of Python PEP documents, providing developers with a complete knowledge base application example. We hope this project can serve as a catalyst, inspiring more developers to build their own knowledge base applications based on the openJiuwen knowledge base framework, exploring more possibilities for knowledge bases in scenarios such as code review, document retrieval, and intelligent Q&A, and promoting the wider adoption of knowledge base technology in software development toolchains.
 
 ## Key Features
 
@@ -24,7 +25,7 @@ This project serves as a reference implementation, demonstrating how to build an
 
 TomatoReviewer is built on top of:
 
-- **[openjiuwen](https://gitcode.com/openJiuwen/agent-core)**: Agent framework and knowledge base system. The PEP knowledge base feature leverages openjiuwen's knowledge base framework for vector storage, embeddings, and hybrid search capabilities.
+- **[openJiuwen](https://gitcode.com/openJiuwen/agent-core)**: Agent framework and knowledge base system. The PEP knowledge base feature leverages openJiuwen's knowledge base framework for vector storage, embeddings, and hybrid search capabilities.
 - **pylint**: Static code analysis
 - **ruff**: Fast Python linter and formatter
 
@@ -33,12 +34,12 @@ TomatoReviewer is built on top of:
 TomatoReviewer employs three specialized agents:
 
 1. **ReviewerAgent**: Analyzes code using pylint, searches PEP knowledge base for relevant guidelines, and generates comprehensive review reports with proposed fixes
-2. **SearcherAgent**: Searches the PEP knowledge base (powered by openjiuwen's knowledge base framework) to find relevant coding conventions and best practices
+2. **SearcherAgent**: Searches the PEP knowledge base (powered by openJiuwen's knowledge base framework) to find relevant coding conventions and best practices
 3. **FixerAgent**: Applies fixes using LLM reasoning, incorporating reviewer instructions and PEP context, and tests fixes to ensure code still works
 
 The tool follows an iterative review-fix cycle: it reviews files, applies fixes, reviews again, and repeats until issues are resolved or the maximum iteration limit is reached.
 
-The PEP knowledge base is built using [openjiuwen's knowledge base framework](https://gitcode.com/openJiuwen/agent-core), which provides vector storage, embedding models, and hybrid search capabilities for efficient retrieval of relevant PEP guidelines.
+The PEP knowledge base is built using [openJiuwen's knowledge base framework](https://gitcode.com/openJiuwen/agent-core), which provides vector storage, embedding models, and hybrid search capabilities for efficient retrieval of relevant PEP guidelines.
 
 ## Installation
 
@@ -117,10 +118,10 @@ tomato-review:
 
 - **Reviews**: `tomato/reviews/` - Markdown review reports
 - **Backups**: `tomato/backup/` - Original files before modification
-- **Logs**: `tomato/logs/` - Processing logs for each file
+- **Logs**: `logs/tomato` - Processing logs for each file
 
 Files are modified in place after review and fixing (unless `--no-fix` is used).
 
 ## Acknowledgments
 
-Special thanks to the [openjiuwen](https://gitcode.com/openJiuwen/agent-core) project for providing the knowledge base framework that powers TomatoReviewer's PEP search capabilities.
+Special thanks to the [openJiuwen](https://gitcode.com/openJiuwen/agent-core) project for providing the knowledge base framework that powers TomatoReviewer's PEP search capabilities.

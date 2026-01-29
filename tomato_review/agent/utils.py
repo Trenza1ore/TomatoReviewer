@@ -116,6 +116,8 @@ def setup_tomato_directories(base_path: Optional[Path] = None) -> Dict[str, Path
 
     if tomato_dir.exists():
         shutil.rmtree(tomato_dir)
+    if logs_dir.exists():
+        shutil.rmtree(logs_dir)
 
     # Create directories
     backup_dir.mkdir(parents=True, exist_ok=True)
@@ -244,3 +246,46 @@ def extract_reasoning_content(content: str, reasoning_pattern: str = r"<think>(.
     if reasoning:
         return content[reasoning.end() :].strip(), reasoning.group(1)
     return content.strip(), ""
+
+
+def get_pylint_config_path() -> Optional[str]:
+    """Determine the pylint configuration file path for --rcfile option.
+
+    Checks for pylint configuration files in the following order:
+    1. .pylintrc in current working directory
+    2. pyproject.toml in current working directory (if it contains [tool.pylint] section)
+       Note: pylint auto-detects pyproject.toml, so we return None to let it auto-detect
+    3. Falls back to the default pylintrc in tomato_review package
+
+    Returns:
+        Path to pylint config file as string for --rcfile option, or None if pylint should auto-detect
+    """
+    cwd = Path.cwd()
+
+    # Check for .pylintrc in cwd
+    pylintrc_path = cwd / ".pylintrc"
+    if pylintrc_path.exists() and pylintrc_path.is_file():
+        return str(pylintrc_path.absolute())
+
+    # Check for pyproject.toml in cwd with pylint config
+    pyproject_path = cwd / "pyproject.toml"
+    if pyproject_path.exists() and pyproject_path.is_file():
+        try:
+            # Check if pyproject.toml contains [tool.pylint] section
+            content = pyproject_path.read_text(encoding="utf-8")
+            if "[tool.pylint]" in content or '["tool.pylint"]' in content:
+                # pylint auto-detects pyproject.toml, so we don't need --rcfile
+                # Return None to indicate pylint should auto-detect
+                return None
+        except Exception:
+            # If we can't read the file, continue to fallback
+            pass
+
+    # Fallback to default pylintrc in tomato_review package
+    from tomato_review import PYLINT_FALLBACK
+
+    if PYLINT_FALLBACK.exists():
+        return str(PYLINT_FALLBACK)
+
+    # No config file found, return None (pylint will use defaults)
+    return None

@@ -7,14 +7,14 @@ Uses LLM reasoning through ReActAgent framework.
 import threading
 from typing import Any, Dict, Optional
 
-from openjiuwen.core.common.schema.param import Param
+from tqdm import tqdm
+
 from openjiuwen.core.foundation.llm import ToolCall, ToolMessage
 from openjiuwen.core.foundation.tool import tool
 from openjiuwen.core.session.session import Session
 from openjiuwen.core.single_agent.agents.react_agent import ReActAgent, ReActAgentConfig
 from openjiuwen.core.single_agent.schema.agent_card import AgentCard
-from tqdm import tqdm
-
+from tomato_review.agent.session import AgentSession
 from tomato_review.agent.utils import configure_from_env, get_env_var
 from tomato_review.pep_kb.pep_knowledge_base import PEPKnowledgeBase, create_pep_knowledge_base
 
@@ -53,18 +53,20 @@ class SearcherAgent(ReActAgent):
                     "Takes a query about Python coding conventions and an optional code snippet, "
                     "searches relevant PEPs, and returns a concise yet detailed summary."
                 ),
-                input_params=[
-                    Param.string(
-                        name="query",
-                        description="Query about Python coding conventions or best practices",
-                        required=True,
-                    ),
-                    Param.string(
-                        name="code_snippet",
-                        description="Optional code snippet related to the query",
-                        required=False,
-                    ),
-                ],
+                input_params={
+                    "type": "object",
+                    "properties": {
+                        "question": {
+                            "type": "string",
+                            "description": "Question about Python coding conventions or best practices",
+                        },
+                        "code_snippet": {
+                            "type": "string",
+                            "description": "Optional code snippet related to the question",
+                        },
+                    },
+                    "required": ["question"],
+                },
             )
 
         # Initialize parent
@@ -139,7 +141,7 @@ Be thorough but concise. Focus on actionable recommendations based on official P
             pep_kb = await agent_instance.get_pep_kb()
 
             # Search for relevant PEPs
-            results = await pep_kb.search_peps(enhanced_query, top_k=10)
+            results = await pep_kb.search_peps(enhanced_query, top_k=3)
 
             # Store count for return value (using setattr to avoid linter warning)
             setattr(agent_instance, "_last_search_count", len(results))
@@ -319,8 +321,14 @@ Be thorough but concise. Focus on actionable recommendations based on official P
         if "qwen3" in self.config.model_name.casefold():
             user_query += " /no_think"
 
+        # Create a session if not provided (required by upstream API)
+        if session is None:
+            import uuid
+
+            session = AgentSession(session_id=f"search_{uuid.uuid4().hex[:8]}")
+
         # Use parent's ReAct loop - LLM will reason and use tools
-        result = await super().invoke({"query": user_query}, session)
+        result = await super().invoke({"query": user_query}, session=session)
 
         # Extract results count if available (from tool execution)
         results_count = getattr(self, "_last_search_count", 0)

@@ -12,14 +12,14 @@ import threading
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from openjiuwen.core.common.schema.param import Param
+from tqdm import tqdm
+
 from openjiuwen.core.foundation.llm import ToolCall, ToolMessage
 from openjiuwen.core.foundation.tool import tool
 from openjiuwen.core.session.session import Session
 from openjiuwen.core.single_agent.agents.react_agent import ReActAgent, ReActAgentConfig
 from openjiuwen.core.single_agent.schema.agent_card import AgentCard
-from tqdm import tqdm
-
+from tomato_review.agent.session import AgentSession
 from tomato_review.agent.utils import configure_from_env, parse_pylint_output
 
 
@@ -54,39 +54,39 @@ class FixerAgent(ReActAgent):
                     "Takes review results and applies fixes to generate corrected "
                     "versions based on PEP guidelines."
                 ),
-                input_params=[
-                    Param.string(
-                        name="file_path",
-                        description="Path to the source file to fix",
-                        required=True,
-                    ),
-                    Param.object(
-                        name="review_results",
-                        description="Review results from ReviewerAgent containing proposed changes",
-                        required=True,
-                        properties=[
-                            Param.array(
-                                name="proposed_changes",
-                                description="List of proposed changes with fixes",
-                                required=True,
-                                items=Param.object(
-                                    name="change",
-                                    description="A proposed change",
-                                    required=True,
-                                    properties=[
-                                        Param.integer(name="line", description="Line number", required=True),
-                                        Param.string(
-                                            name="original_code", description="Original code line", required=False
-                                        ),
-                                        Param.string(name="fixed_code", description="Fixed code line", required=False),
-                                        Param.string(name="code", description="Error code", required=False),
-                                        Param.string(name="message", description="Error message", required=False),
-                                    ],
-                                ),
-                            ),
-                        ],
-                    ),
-                ],
+                input_params={
+                    "type": "object",
+                    "properties": {
+                        "file_path": {
+                            "type": "string",
+                            "description": "Path to the source file to fix",
+                        },
+                        "review_results": {
+                            "type": "object",
+                            "description": "Review results from ReviewerAgent containing proposed changes",
+                            "properties": {
+                                "proposed_changes": {
+                                    "type": "array",
+                                    "description": "List of proposed changes with fixes",
+                                    "items": {
+                                        "type": "object",
+                                        "description": "A proposed change",
+                                        "properties": {
+                                            "line": {"type": "integer", "description": "Line number"},
+                                            "original_code": {"type": "string", "description": "Original code line"},
+                                            "fixed_code": {"type": "string", "description": "Fixed code line"},
+                                            "code": {"type": "string", "description": "Error code"},
+                                            "message": {"type": "string", "description": "Error message"},
+                                        },
+                                        "required": ["line"],
+                                    },
+                                },
+                            },
+                            "required": ["proposed_changes"],
+                        },
+                    },
+                    "required": ["file_path", "review_results"],
+                },
             )
 
         # Initialize parent
@@ -192,7 +192,7 @@ Be precise and careful - don't break working code. When in doubt, preserve the o
                 Success message
             """
             with open(file_path, "w", encoding="utf-8") as f:
-                f.write(content)
+                f.write(content.strip() + "\n")
             return f"Successfully wrote {len(content)} characters to {file_path}"
 
         # Tool: Run pylint
@@ -837,8 +837,18 @@ Be precise and careful - don't break working code. When in doubt, preserve the o
             Dict with 'errors' list
         """
         try:
+            from tomato_review.agent.utils import get_pylint_config_path
+
+            # Get pylint config file path
+            pylint_config = get_pylint_config_path()
+
+            # Build pylint command
+            cmd = ["pylint", file_path, "--output-format=text"]
+            if pylint_config:
+                cmd.extend(["--rcfile", pylint_config])
+
             result = subprocess.run(
-                ["pylint", file_path, "--output-format=text"],
+                cmd,
                 capture_output=True,
                 text=True,
                 timeout=60,
@@ -1091,6 +1101,12 @@ Important:
         if "qwen3" in self.config.model_name.casefold():
             user_query += " /no_think"
 
+        # Create a session if not provided (required by upstream API)
+        if session is None:
+            import uuid
+
+            session = AgentSession(session_id=f"fix_{uuid.uuid4().hex[:8]}")
+
         try:
             # Use parent's ReAct loop - LLM will reason and use tools
             llm_result = await super().invoke({"query": user_query}, session=session)
@@ -1146,7 +1162,7 @@ Important:
 
                 # Write fixed content back to original file (in place)
                 with open(file_path, "w", encoding="utf-8") as f:
-                    f.write(fixed_content)
+                    f.write(fixed_content.strip() + "\n")
 
                 # Format the file with ruff (in place)
                 ruff_format_result = await self._run_ruff_format(file_path)

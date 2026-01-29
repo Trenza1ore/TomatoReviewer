@@ -25,6 +25,7 @@ try:
 except ImportError:
     from tqdm.auto import tqdm
 
+from openjiuwen import __version__ as jiuwen_version
 from openjiuwen.core.foundation.llm.model import Model
 from openjiuwen.core.foundation.llm.schema.config import ModelClientConfig, ModelRequestConfig
 
@@ -129,6 +130,8 @@ def expand_file_patterns(patterns: List[str]) -> List[str]:
 
 async def main():
     """Main CLI entry point."""
+    print(f"Using openJiuwen version: {jiuwen_version}")
+
     # Set up signal handler for cleanup
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
