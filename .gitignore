@@ -115,5 +115,8 @@ tomato_review/*.lock
 # VS Code
 .vscode/
 
-# Test files
+# test files
 /test*.*
+
+# upstream package for testing purpose
+openjiuwen/

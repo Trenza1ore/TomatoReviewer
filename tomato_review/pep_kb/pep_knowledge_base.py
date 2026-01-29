@@ -19,6 +19,7 @@ from openjiuwen.core.retrieval.indexing.processor.chunker.chunking import TextCh
 from openjiuwen.core.retrieval.indexing.processor.parser.auto_file_parser import AutoFileParser
 from openjiuwen.core.retrieval.simple_knowledge_base import SimpleKnowledgeBase
 from openjiuwen.core.retrieval.vector_store.milvus_store import MilvusVectorStore
+from tomato_review import DEBUG_MODE
 
 from .get_pep_index import CacheManager
 from .pep_models import PEPDocument
@@ -333,6 +334,8 @@ class PEPKnowledgeBase:
         except Exception as e:
             # Fallback: if update_documents fails, try delete + add
             retrieval_logger.warning("update_documents failed for PEP %d, trying delete + add: %r", pep_number, e)
+            if DEBUG_MODE:
+                raise e
             await self.delete_peps([pep_number])
             doc_ids = await self.knowledge_base.add_documents([doc])
             return doc_ids[0] if doc_ids else None

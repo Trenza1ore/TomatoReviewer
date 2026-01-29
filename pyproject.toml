@@ -31,7 +31,7 @@ build-backend = "setuptools.build_meta"
 packages = ["tomato_review", "tomato_review.agent", "tomato_review.pep_kb"]
 
 [tool.setuptools.package-data]
-"tomato_review" = ["version.txt"]
+"tomato_review" = ["version.txt", ".pylintrc"]
 
 # Formatting & Linting
 [tool.ruff]

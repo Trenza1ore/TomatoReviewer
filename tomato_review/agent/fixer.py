@@ -12,13 +12,14 @@ import threading
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from tqdm import tqdm
+
 from openjiuwen.core.foundation.llm import ToolCall, ToolMessage
 from openjiuwen.core.foundation.tool import tool
 from openjiuwen.core.session.session import Session
 from openjiuwen.core.single_agent.agents.react_agent import ReActAgent, ReActAgentConfig
 from openjiuwen.core.single_agent.schema.agent_card import AgentCard
-from tqdm import tqdm
-
+from tomato_review.agent.session import AgentSession
 from tomato_review.agent.utils import configure_from_env, parse_pylint_output
 
 
@@ -836,8 +837,18 @@ Be precise and careful - don't break working code. When in doubt, preserve the o
             Dict with 'errors' list
         """
         try:
+            from tomato_review.agent.utils import get_pylint_config_path
+
+            # Get pylint config file path
+            pylint_config = get_pylint_config_path()
+
+            # Build pylint command
+            cmd = ["pylint", file_path, "--output-format=text"]
+            if pylint_config:
+                cmd.extend(["--rcfile", pylint_config])
+
             result = subprocess.run(
-                ["pylint", file_path, "--output-format=text"],
+                cmd,
                 capture_output=True,
                 text=True,
                 timeout=60,
@@ -1089,6 +1100,12 @@ Important:
 - Always test your fixes with run_code before finalizing"""
         if "qwen3" in self.config.model_name.casefold():
             user_query += " /no_think"
+
+        # Create a session if not provided (required by upstream API)
+        if session is None:
+            import uuid
+
+            session = AgentSession(session_id=f"fix_{uuid.uuid4().hex[:8]}")
 
         try:
             # Use parent's ReAct loop - LLM will reason and use tools

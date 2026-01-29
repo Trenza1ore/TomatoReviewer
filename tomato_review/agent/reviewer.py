@@ -12,16 +12,18 @@ import threading
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from tqdm import tqdm
+
 from openjiuwen.core.common.exception.exception import JiuWenBaseException
 from openjiuwen.core.foundation.llm import ToolCall, ToolMessage
 from openjiuwen.core.foundation.tool import tool
 from openjiuwen.core.session.session import Session
 from openjiuwen.core.single_agent.agents.react_agent import ReActAgent, ReActAgentConfig
 from openjiuwen.core.single_agent.schema.agent_card import AgentCard
-from tqdm import tqdm
-
+from tomato_review import DEBUG_MODE
 from tomato_review.agent.fixer import FixerAgent
 from tomato_review.agent.searcher import SearcherAgent
+from tomato_review.agent.session import AgentSession
 from tomato_review.agent.utils import (
     backup_file,
     configure_from_env,
@@ -348,9 +350,19 @@ Be thorough, accurate, and focus on Python best practices."""
             Dict with 'stdout', 'stderr', 'returncode', and parsed 'errors'
         """
         try:
+            from tomato_review.agent.utils import get_pylint_config_path
+
+            # Get pylint config file path
+            pylint_config = get_pylint_config_path()
+
+            # Build pylint command
+            cmd = ["pylint", file_path, "--output-format=text"]
+            if pylint_config:
+                cmd.extend(["--rcfile", pylint_config])
+
             # Run pylint
             result = subprocess.run(
-                ["pylint", file_path, "--output-format=text"],
+                cmd,
                 capture_output=True,
                 text=True,
                 timeout=60,
@@ -483,6 +495,8 @@ Be thorough, accurate, and focus on Python best practices."""
         except Exception as e:
             error_msg = f"Error searching PEPs: {str(e)}"
             self._file_loggers[file_path].error(error_msg)
+            if DEBUG_MODE:
+                raise e
             # Return error message that will be visible in the report
             return f"Error: {error_msg}. Please check your API configuration and network connection."
 
@@ -708,6 +722,130 @@ Be thorough, accurate, and focus on Python best practices."""
             "message": message,
         }
 
+    async def invoke(
+        self,
+        inputs: Any,
+        session: Optional[Any] = None,
+    ) -> Dict[str, Any]:
+        """Override invoke to clean up reasoning from conversation history after each LLM call.
+
+        This method handles two cases:
+        1. File processing (inputs with 'files' key) - delegates to file processing logic
+        2. Simple queries (dict with 'query' or str) - runs ReAct loop with reasoning cleanup
+        """
+        # Check if this is a file processing request
+        if isinstance(inputs, dict):
+            files = inputs.get("files") or inputs.get("file_list", [])
+            if files:
+                # This is a file processing request, use the original file processing logic
+                return await self._invoke_file_processing(inputs, session)
+
+        # Otherwise, this is a simple query - run ReAct loop with reasoning cleanup
+        from openjiuwen.core.foundation.llm import AssistantMessage, SystemMessage, UserMessage
+
+        # Normalize inputs
+        if isinstance(inputs, dict):
+            user_input = inputs.get("query")
+            if user_input is None:
+                raise ValueError("Input dict must contain 'query'")
+        elif isinstance(inputs, str):
+            user_input = inputs
+        else:
+            raise ValueError("Input must be dict with 'query' or str")
+
+        # Create session if not provided
+        if session is None:
+            import uuid
+
+            session = AgentSession(session_id=f"review_{uuid.uuid4().hex[:8]}")
+
+        # Get or create model context
+        context = await self._init_context(session)
+
+        # Add user message to context
+        await context.add_messages(UserMessage(content=user_input))
+
+        # Build system messages from prompt template
+        system_messages = [
+            SystemMessage(role=msg["role"], content=msg["content"])
+            for msg in self.config.prompt_template
+            if msg.get("role") == "system"
+        ]
+
+        if len(system_messages) > 0 and self._skill_util.has_skill():
+            skill_prompt = self._skill_util.get_skill_prompt()
+            last_msg = system_messages[-1]
+            last_msg.content = (last_msg.content or "") + "\n" + skill_prompt
+
+        # Get tool info from _ability_manager
+        tools = await self.list_tool_info()
+
+        # Track the last reasoning content across iterations
+        last_reasoning = ""
+
+        # ReAct loop with reasoning cleanup
+        for _iteration in range(self.config.max_iterations):
+            # Get context window with system messages and tools
+            context_window = await context.get_context_window(
+                system_messages=system_messages,
+                tools=tools if tools else None,
+            )
+
+            # Call LLM with messages and tools from context window
+            ai_message = await self._call_llm(context_window.get_messages(), context_window.get_tools() or None)
+
+            # Extract and clean up reasoning from AI message content
+            cleaned_content, reasoning = extract_reasoning_content(ai_message.content)
+
+            # Store the reasoning content (last one will be kept)
+            if reasoning:
+                last_reasoning = reasoning
+
+            # Add cleaned AI message to context
+            ai_msg_for_context = AssistantMessage(content=cleaned_content, tool_calls=ai_message.tool_calls)
+            await context.add_messages(ai_msg_for_context)
+
+            # Check for tool calls
+            if ai_message.tool_calls:
+                # Execute tools using _execute_ability (supports parallel)
+                results = await self._execute_ability(ai_message.tool_calls, session)
+
+                # Process results and add tool messages to context
+                for _result, tool_msg in results:
+                    await context.add_messages(tool_msg)
+            else:
+                # No tool calls, return AI response (already cleaned) with reasoning
+                return {
+                    "output": cleaned_content,
+                    "result_type": "answer",
+                    "reasoning": last_reasoning if last_reasoning else None,
+                }
+
+        # Max iterations reached, get the last message content (already cleaned)
+        all_messages = await context.get_messages()
+        last_assistant_msg = None
+        for msg in reversed(all_messages):
+            if isinstance(msg, AssistantMessage):
+                last_assistant_msg = msg
+                break
+
+        final_output = last_assistant_msg.content if last_assistant_msg else ""
+        return {
+            "output": final_output,
+            "result_type": "answer",
+            "reasoning": last_reasoning if last_reasoning else None,
+        }
+
+    async def _invoke_file_processing(
+        self,
+        inputs: Any,
+        session: Optional[Any] = None,
+    ) -> Dict[str, Any]:
+        """Execute code review on list of files using LLM reasoning.
+
+        This is the original file processing logic extracted to a separate method.
+        """
+
     async def _review_file(self, file_path: str) -> Dict[str, Any]:
         """Review a single file using LLM reasoning.
 
@@ -749,9 +887,15 @@ Your task:
 Format your response as a detailed markdown report."""
 
         try:
-            # Use parent's ReAct loop - LLM will reason and use tools
-            llm_result = await super().invoke({"query": user_query}, session=None)
-            llm_output, llm_reasoning = extract_reasoning_content(llm_result.get("output", ""))
+            # Create a session (required by upstream API)
+            import uuid
+
+            session = AgentSession(session_id=f"review_{uuid.uuid4().hex[:8]}")
+
+            # Use our overridden invoke method which cleans up reasoning
+            llm_result = await self.invoke({"query": user_query}, session=session)
+            llm_output = llm_result.get("output", "")
+            llm_reasoning = llm_result.get("reasoning")
 
             # Run pylint ourselves to get structured error data (for compatibility with existing code)
             pylint_result = await self._run_pylint(file_path)
@@ -799,6 +943,8 @@ Format your response as a detailed markdown report."""
             raise
         except Exception as e:
             self._file_loggers[file_path].error("LLM review failed for %s: %s", file_path, e)
+            if DEBUG_MODE:
+                raise e
             # Fallback to rule-based review
             return await self._review_file_rule_based(file_path)
 
@@ -913,6 +1059,8 @@ Format your response as a detailed markdown report."""
                 # PEP search failed - log and continue, but mark as error
                 error_msg = f"PEP search failed for question '{question}': {str(e)}"
                 self._file_loggers[file_path].error(error_msg)
+                if DEBUG_MODE:
+                    raise e
                 pep_results[question] = f"Error: {error_msg}"
                 pep_search_errors.append(question)
 
@@ -1220,7 +1368,7 @@ Format your response as a detailed markdown report."""
 
         return final_fixed_file_path
 
-    async def invoke(
+    async def _invoke_file_processing(
         self,
         inputs: Any,
         session: Optional[Any] = None,
@@ -1327,6 +1475,8 @@ Format your response as a detailed markdown report."""
         for i, result in enumerate(results):
             if isinstance(result, Exception):
                 self._file_loggers[files[i]].error("Error processing file %s: %s", files[i], result)
+                if DEBUG_MODE:
+                    raise result
                 continue
 
             reports.append(result["file_report"])
