@@ -13,7 +13,6 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from openjiuwen.core.common.exception.exception import JiuWenBaseException
-from openjiuwen.core.common.schema.param import Param
 from openjiuwen.core.foundation.llm import ToolCall, ToolMessage
 from openjiuwen.core.foundation.tool import tool
 from openjiuwen.core.session.session import Session
@@ -77,18 +76,20 @@ class ReviewerAgent(ReActAgent):
                     "Runs pylint on files, generates questions about errors, searches PEPs, "
                     "and generates comprehensive markdown reports."
                 ),
-                input_params=[
-                    Param.array(
-                        name="files",
-                        description="List of file paths to review",
-                        required=True,
-                        items=Param.string(
-                            name="file_path",
-                            description="Path to a Python file to review",
-                            required=True,
-                        ),
-                    ),
-                ],
+                input_params={
+                    "type": "object",
+                    "properties": {
+                        "files": {
+                            "type": "array",
+                            "description": "List of file paths to review",
+                            "items": {
+                                "type": "string",
+                                "description": "Path to a Python file to review",
+                            },
+                        },
+                    },
+                    "required": ["files"],
+                },
             )
 
         # Initialize parent

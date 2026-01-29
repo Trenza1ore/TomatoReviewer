@@ -1,6 +1,6 @@
 # TomatoReviewer
 
-**TomatoReviewer** 是一个智能的 Python 代码审查工具，它结合了静态分析和基于大语言模型（LLM）的推理，提供基于 Python 增强提案（PEP）的全面代码审查和自动修复功能。
+**TomatoReviewer** 是一个智能的 Python 代码审查工具，它结合了静态分析和基于大语言模型（LLM）的推理，提供基于PEP（Python增强提案）的全面代码审查以及自动修复功能。
 
 - [English Version](README.md)
 - [中文版](README.zh.md)
@@ -117,7 +117,7 @@ tomato-review:
 
 - **审查报告**：`tomato/reviews/` - Markdown 审查报告
 - **备份文件**：`tomato/backup/` - 修改前的原始文件
-- **日志文件**：`tomato/logs/` - 每个文件的处理日志
+- **日志文件**：`logs/tomato` - 每个文件的处理日志
 
 文件在审查和修复后会就地修改（除非使用 `--no-fix` 选项）。
 

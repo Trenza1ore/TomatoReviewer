@@ -12,7 +12,6 @@ import threading
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from openjiuwen.core.common.schema.param import Param
 from openjiuwen.core.foundation.llm import ToolCall, ToolMessage
 from openjiuwen.core.foundation.tool import tool
 from openjiuwen.core.session.session import Session
@@ -54,39 +53,39 @@ class FixerAgent(ReActAgent):
                     "Takes review results and applies fixes to generate corrected "
                     "versions based on PEP guidelines."
                 ),
-                input_params=[
-                    Param.string(
-                        name="file_path",
-                        description="Path to the source file to fix",
-                        required=True,
-                    ),
-                    Param.object(
-                        name="review_results",
-                        description="Review results from ReviewerAgent containing proposed changes",
-                        required=True,
-                        properties=[
-                            Param.array(
-                                name="proposed_changes",
-                                description="List of proposed changes with fixes",
-                                required=True,
-                                items=Param.object(
-                                    name="change",
-                                    description="A proposed change",
-                                    required=True,
-                                    properties=[
-                                        Param.integer(name="line", description="Line number", required=True),
-                                        Param.string(
-                                            name="original_code", description="Original code line", required=False
-                                        ),
-                                        Param.string(name="fixed_code", description="Fixed code line", required=False),
-                                        Param.string(name="code", description="Error code", required=False),
-                                        Param.string(name="message", description="Error message", required=False),
-                                    ],
-                                ),
-                            ),
-                        ],
-                    ),
-                ],
+                input_params={
+                    "type": "object",
+                    "properties": {
+                        "file_path": {
+                            "type": "string",
+                            "description": "Path to the source file to fix",
+                        },
+                        "review_results": {
+                            "type": "object",
+                            "description": "Review results from ReviewerAgent containing proposed changes",
+                            "properties": {
+                                "proposed_changes": {
+                                    "type": "array",
+                                    "description": "List of proposed changes with fixes",
+                                    "items": {
+                                        "type": "object",
+                                        "description": "A proposed change",
+                                        "properties": {
+                                            "line": {"type": "integer", "description": "Line number"},
+                                            "original_code": {"type": "string", "description": "Original code line"},
+                                            "fixed_code": {"type": "string", "description": "Fixed code line"},
+                                            "code": {"type": "string", "description": "Error code"},
+                                            "message": {"type": "string", "description": "Error message"},
+                                        },
+                                        "required": ["line"],
+                                    },
+                                },
+                            },
+                            "required": ["proposed_changes"],
+                        },
+                    },
+                    "required": ["file_path", "review_results"],
+                },
             )
 
         # Initialize parent

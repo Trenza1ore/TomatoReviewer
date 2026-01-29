@@ -117,7 +117,7 @@ tomato-review:
 
 - **Reviews**: `tomato/reviews/` - Markdown review reports
 - **Backups**: `tomato/backup/` - Original files before modification
-- **Logs**: `tomato/logs/` - Processing logs for each file
+- **Logs**: `logs/tomato` - Processing logs for each file
 
 Files are modified in place after review and fixing (unless `--no-fix` is used).
 

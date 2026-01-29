@@ -7,7 +7,6 @@ Uses LLM reasoning through ReActAgent framework.
 import threading
 from typing import Any, Dict, Optional
 
-from openjiuwen.core.common.schema.param import Param
 from openjiuwen.core.foundation.llm import ToolCall, ToolMessage
 from openjiuwen.core.foundation.tool import tool
 from openjiuwen.core.session.session import Session
@@ -53,18 +52,20 @@ class SearcherAgent(ReActAgent):
                     "Takes a query about Python coding conventions and an optional code snippet, "
                     "searches relevant PEPs, and returns a concise yet detailed summary."
                 ),
-                input_params=[
-                    Param.string(
-                        name="query",
-                        description="Query about Python coding conventions or best practices",
-                        required=True,
-                    ),
-                    Param.string(
-                        name="code_snippet",
-                        description="Optional code snippet related to the query",
-                        required=False,
-                    ),
-                ],
+                input_params={
+                    "type": "object",
+                    "properties": {
+                        "question": {
+                            "type": "string",
+                            "description": "Question about Python coding conventions or best practices",
+                        },
+                        "code_snippet": {
+                            "type": "string",
+                            "description": "Optional code snippet related to the question",
+                        },
+                    },
+                    "required": ["question"],
+                },
             )
 
         # Initialize parent

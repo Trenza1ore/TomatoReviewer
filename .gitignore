@@ -107,7 +107,13 @@ venv.bak/
 tomato/
 
 # tomato reviewer cache
-tomato_review/*.pkl
+tomato_review/**/*.pkl
 
 # tomato reviewer file lock
 tomato_review/*.lock
+
+# VS Code
+.vscode/
+
+# Test files
+/test*.*
