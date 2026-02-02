@@ -7,9 +7,8 @@ Uses LLM reasoning through ReActAgent framework.
 import threading
 from typing import Any, Dict, Optional
 
-from openjiuwen.core.foundation.llm import ToolCall, ToolMessage
 from openjiuwen.core.foundation.tool import tool
-from openjiuwen.core.session.session import Session
+from openjiuwen.core.runner import Runner
 from openjiuwen.core.single_agent.agents.react_agent import ReActAgent, ReActAgentConfig
 from openjiuwen.core.single_agent.schema.agent_card import AgentCard
 from tqdm import tqdm
@@ -80,16 +79,13 @@ class SearcherAgent(ReActAgent):
         self._pep_kb = pep_kb
         self._last_search_count = 0  # Track search results count
 
-        # Store tool instances for local execution
-        self._local_tools: Dict[str, Any] = {}
-
         # Configure agent if config provided
         if config is not None:
             self.configure(config)
         else:
             # Set configuration from environment variables (all required)
             default_config = ReActAgentConfig()
-            configure_from_env(default_config)
+            configure_from_env(default_config, role="search")
             self.configure(default_config)
 
         # Set up system prompt for LLM reasoning
@@ -100,7 +96,9 @@ class SearcherAgent(ReActAgent):
 
     def _setup_prompt(self):
         """Set up system prompt for LLM reasoning."""
-        system_prompt = """You are a Python coding conventions expert assistant. Your task is to help users find relevant Python Enhancement Proposals (PEPs) that address their questions about Python coding conventions and best practices.
+        system_prompt = f"""You are a Python coding conventions expert assistant. Your task is to help users find relevant Python Enhancement Proposals (PEPs) that address their questions about Python coding conventions and best practices.
+
+**You have {round(self.config.max_iterations * 0.8)} tool usage quota for seaching, DO NOT WASTE THEM**
 
 When a user asks a question:
 1. Use the search_pep_knowledge_base tool to search for relevant PEPs
@@ -122,6 +120,24 @@ Be thorough but concise. Focus on actionable recommendations based on official P
         # Create search PEP tool - need to bind to instance
         agent_instance = self
 
+        @tool(
+            name="search_pep_knowledge_base",
+            description="Search the Python PEP knowledge base for relevant PEP documents related to a query about Python coding conventions or best practices.",
+            input_params={
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "The search query about Python coding conventions or best practices",
+                    },
+                    "code_snippet": {
+                        "type": "string",
+                        "description": "Optional code snippet related to the query for better context",
+                    },
+                },
+                "required": ["query"],
+            },
+        )
         async def search_pep_knowledge_base(query: str, code_snippet: str = "") -> str:
             """Search PEP knowledge base and return formatted results.
 
@@ -180,71 +196,13 @@ Be thorough but concise. Focus on actionable recommendations based on official P
 
             return "\n".join(formatted_results)
 
-        # Create tool from function
-        search_tool = tool(
-            name="search_pep_knowledge_base",
-            description="Search the Python PEP knowledge base for relevant PEP documents related to a query about Python coding conventions or best practices.",
-            input_params={
-                "type": "object",
-                "properties": {
-                    "query": {
-                        "type": "string",
-                        "description": "The search query about Python coding conventions or best practices",
-                    },
-                    "code_snippet": {
-                        "type": "string",
-                        "description": "Optional code snippet related to the query for better context",
-                    },
-                },
-                "required": ["query"],
-            },
-        )(search_pep_knowledge_base)
+        search_pep_knowledge_base.card.id = "search_pep_knowledge_base"
 
-        # Store tool instance for local execution
-        self._local_tools["search_pep_knowledge_base"] = search_tool
+        # Register tool with resource manager
+        Runner.resource_mgr.add_tool(search_pep_knowledge_base)
 
-        # Register the tool card (not the tool instance)
-        self.add_ability(search_tool.card)
-
-    async def _execute_ability(self, tool_calls: Any, session: Session) -> list[tuple[Any, ToolMessage]]:
-        """Override to handle local tool execution."""
-        import json
-
-        # Convert single tool_call to list
-        if not isinstance(tool_calls, list):
-            tool_calls = [tool_calls]
-
-        results = []
-        for tool_call in tool_calls:
-            tool_name = tool_call.name if isinstance(tool_call, ToolCall) else tool_call.get("name", "")
-
-            # Check if it's a local tool
-            if tool_name in self._local_tools:
-                local_tool = self._local_tools[tool_name]
-                # Parse arguments
-                if isinstance(tool_call, ToolCall):
-                    tool_args = (
-                        json.loads(tool_call.arguments) if isinstance(tool_call.arguments, str) else tool_call.arguments
-                    )
-                    tool_call_id = tool_call.id
-                else:
-                    tool_args = tool_call.get("arguments", {})
-                    tool_call_id = tool_call.get("id", "")
-
-                try:
-                    result = await local_tool.invoke(tool_args)
-                    tool_message = ToolMessage(content=str(result), tool_call_id=tool_call_id)
-                    results.append((result, tool_message))
-                except Exception as e:
-                    error_msg = f"Local tool execution error: {str(e)}"
-                    tool_message = ToolMessage(content=error_msg, tool_call_id=tool_call_id)
-                    results.append((None, tool_message))
-            else:
-                # Fall back to parent implementation
-                parent_results = await super()._execute_ability(tool_calls, session)
-                results.extend(parent_results if isinstance(parent_results, list) else [parent_results])
-
-        return results
+        # Register the tool card
+        self.add_ability([search_pep_knowledge_base.card])
 
     async def get_pep_kb(self) -> PEPKnowledgeBase:
         """Get or create PEPKnowledgeBase instance.
@@ -301,9 +259,11 @@ Be thorough but concise. Focus on actionable recommendations based on official P
             Dict with 'output' (summary) and 'result_type'
         """
         # Normalize inputs
+        file_logger = None
         if isinstance(inputs, dict):
             query = inputs.get("query") or inputs.get("user_input")
             code_snippet = inputs.get("code_snippet", "")
+            file_logger = inputs.get("file_logger")
         elif isinstance(inputs, str):
             query = inputs
             code_snippet = ""
@@ -329,6 +289,12 @@ Be thorough but concise. Focus on actionable recommendations based on official P
 
         # Use parent's ReAct loop - LLM will reason and use tools
         result = await super().invoke({"query": user_query}, session=session)
+
+        # Log LLM output (searcher role)
+        if file_logger:
+            llm_output = result.get("output", "")
+            output_preview = llm_output[:2000] + ("..." if len(llm_output) > 2000 else "")
+            file_logger.info("[SEARCHER] LLM invoke output:\n%s", output_preview)
 
         # Extract results count if available (from tool execution)
         results_count = getattr(self, "_last_search_count", 0)
