@@ -1,4 +1,5 @@
-"""ReviewerAgent: Agent for code review using pylint and PEP knowledge base.
+"""
+ReviewerAgent: Agent for code review using pylint and PEP knowledge base.
 
 This agent runs pylint on files, generates questions about errors, searches PEPs
 via SearcherAgent, and generates comprehensive markdown reports.
@@ -12,10 +13,10 @@ import threading
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from openjiuwen.core.common.exception.errors import BaseError
 from openjiuwen.core.common.exception.exception import JiuWenBaseException
-from openjiuwen.core.foundation.llm import ToolCall, ToolMessage
 from openjiuwen.core.foundation.tool import tool
-from openjiuwen.core.session.session import Session
+from openjiuwen.core.runner import Runner
 from openjiuwen.core.single_agent.agents.react_agent import ReActAgent, ReActAgentConfig
 from openjiuwen.core.single_agent.schema.agent_card import AgentCard
 from tqdm import tqdm
@@ -56,7 +57,6 @@ class ReviewerAgent(ReActAgent):
         fixer_agent: Optional[FixerAgent] = None,
         config: Optional[ReActAgentConfig] = None,
         generate_fixed_files: bool = True,
-        max_iterations: int = 10,
         pbar: Optional[tqdm] = None,
         lock: threading.Lock = threading.Lock(),
     ):
@@ -100,8 +100,19 @@ class ReviewerAgent(ReActAgent):
         # Initialize parent
         super().__init__(card)
 
+        # Configure agent if config provided
+        if config is not None:
+            self.config = config
+            self.configure(config)
+        else:
+            # Set default configuration
+            default_config = ReActAgentConfig()
+            configure_from_env(default_config, role="review")
+            self.config = default_config
+            self.configure(default_config)
+
         # Progress tracking
-        self.max_iterations = max_iterations
+        self.max_iterations = self.config.max_iterations
         self.pbar_unit = 1 / self.max_iterations
         self.pbar = pbar
         self.lock = lock
@@ -124,9 +135,8 @@ class ReviewerAgent(ReActAgent):
 
         # File loggers will be created per-file in invoke
         self._file_loggers = {}
-
-        # Store tool instances for local execution
-        self._local_tools: Dict[str, Any] = {}
+        # Track current file being reviewed for tool access
+        self._current_file_path: Optional[str] = None
 
         # OpenJiuwen doesn't support this yet
         # Add searcher agent as an ability if provided
@@ -137,17 +147,6 @@ class ReviewerAgent(ReActAgent):
         #         input_params=searcher_agent.card.input_params,
         #     )
         #     self.add_ability(searcher_card)
-
-        # Configure agent if config provided
-        if config is not None:
-            self.config = config
-            self.configure(config)
-        else:
-            # Set default configuration
-            default_config = ReActAgentConfig()
-            configure_from_env(default_config)
-            self.config = default_config
-            self.configure(default_config)
 
         # Set up system prompt and tools
         self._setup_prompt()
@@ -181,6 +180,15 @@ Be thorough, accurate, and focus on Python best practices."""
         agent_instance = self
 
         # Tool: Run pylint
+        @tool(
+            name="run_pylint",
+            description="Run pylint static analysis on a Python file to find code quality issues, style violations, and best practice violations.",
+            input_params={
+                "type": "object",
+                "properties": {"file_path": {"type": "string", "description": "Path to the Python file to analyze"}},
+                "required": ["file_path"],
+            },
+        )
         async def run_pylint(file_path: str) -> str:
             """Run pylint on a Python file and return parsed errors.
 
@@ -196,7 +204,18 @@ Be thorough, accurate, and focus on Python best practices."""
             errors = result.get("errors", [])
             return json.dumps({"errors": errors, "count": len(errors)}, indent=2)
 
+        run_pylint.card.id = "run_pylint"
+
         # Tool: Run mypy
+        @tool(
+            name="run_mypy",
+            description="Run mypy type checker on a Python file to find type errors and type-related issues.",
+            input_params={
+                "type": "object",
+                "properties": {"file_path": {"type": "string", "description": "Path to the Python file to analyze"}},
+                "required": ["file_path"],
+            },
+        )
         async def run_mypy(file_path: str) -> str:
             """Run mypy type checker on a Python file and return parsed errors.
 
@@ -212,7 +231,26 @@ Be thorough, accurate, and focus on Python best practices."""
             errors = result.get("errors", [])
             return json.dumps({"errors": errors, "count": len(errors)}, indent=2)
 
+        run_mypy.card.id = "run_mypy"
+
         # Tool: Read file context
+        @tool(
+            name="read_file_context",
+            description="Read a file with context around a specific line number. Useful for understanding code context when analyzing errors.",
+            input_params={
+                "type": "object",
+                "properties": {
+                    "file_path": {"type": "string", "description": "Path to the file to read"},
+                    "line_num": {"type": "integer", "description": "Line number (1-indexed) to get context around"},
+                    "context_lines": {
+                        "type": "integer",
+                        "description": "Number of lines before and after to include (default: 3)",
+                        "default": 3,
+                    },
+                },
+                "required": ["file_path", "line_num"],
+            },
+        )
         async def read_file_context(file_path: str, line_num: int, context_lines: int = 3) -> str:
             """Read file content with context around a specific line.
 
@@ -229,7 +267,24 @@ Be thorough, accurate, and focus on Python best practices."""
             context = agent_instance.read_file_context_tool(file_path, line_num, context_lines)
             return json.dumps(context, indent=2)
 
+        read_file_context.card.id = "read_file_context"
+
         # Tool: Search PEPs (uses searcher agent)
+        @tool(
+            name="search_peps",
+            description="Search Python Enhancement Proposals (PEPs) for guidelines related to a question about Python coding conventions or best practices.",
+            input_params={
+                "type": "object",
+                "properties": {
+                    "question": {
+                        "type": "string",
+                        "description": "Question about Python coding conventions or best practices",
+                    },
+                    "code_snippet": {"type": "string", "description": "Optional code snippet related to the question"},
+                },
+                "required": ["question"],
+            },
+        )
         async def search_peps(question: str, code_snippet: str = "") -> str:
             """Search PEP knowledge base for relevant guidelines.
 
@@ -245,120 +300,28 @@ Be thorough, accurate, and focus on Python best practices."""
                 searcher = SearcherAgent(pbar=self.pbar, lock=self.lock)
                 setattr(agent_instance, "_searcher_agent", searcher)
 
+            # Get file_logger if we have a current file being reviewed
+            file_logger = getattr(agent_instance, "_file_loggers").get(getattr(agent_instance, "_current_file_path"))
+
             result = await searcher.invoke(
                 {
                     "query": question,
                     "code_snippet": code_snippet,
-                }
+                    "file_logger": file_logger,
+                },
             )
             return result.get("output", "No results found.")
 
-        # Create tools
-        pylint_tool = tool(
-            name="run_pylint",
-            description="Run pylint static analysis on a Python file to find code quality issues, style violations, and best practice violations.",
-            input_params={
-                "type": "object",
-                "properties": {"file_path": {"type": "string", "description": "Path to the Python file to analyze"}},
-                "required": ["file_path"],
-            },
-        )(run_pylint)
+        search_peps.card.id = "search_peps"
 
-        mypy_tool = tool(
-            name="run_mypy",
-            description="Run mypy type checker on a Python file to find type errors and type-related issues.",
-            input_params={
-                "type": "object",
-                "properties": {"file_path": {"type": "string", "description": "Path to the Python file to analyze"}},
-                "required": ["file_path"],
-            },
-        )(run_mypy)
+        # Register tools with resource manager
+        Runner.resource_mgr.add_tool(run_pylint)
+        Runner.resource_mgr.add_tool(run_mypy)
+        Runner.resource_mgr.add_tool(read_file_context)
+        Runner.resource_mgr.add_tool(search_peps)
 
-        read_tool = tool(
-            name="read_file_context",
-            description="Read a file with context around a specific line number. Useful for understanding code context when analyzing errors.",
-            input_params={
-                "type": "object",
-                "properties": {
-                    "file_path": {"type": "string", "description": "Path to the file to read"},
-                    "line_num": {"type": "integer", "description": "Line number (1-indexed) to get context around"},
-                    "context_lines": {
-                        "type": "integer",
-                        "description": "Number of lines before and after to include (default: 3)",
-                        "default": 3,
-                    },
-                },
-                "required": ["file_path", "line_num"],
-            },
-        )(read_file_context)
-
-        search_tool = tool(
-            name="search_peps",
-            description="Search Python Enhancement Proposals (PEPs) for guidelines related to a question about Python coding conventions or best practices.",
-            input_params={
-                "type": "object",
-                "properties": {
-                    "question": {
-                        "type": "string",
-                        "description": "Question about Python coding conventions or best practices",
-                    },
-                    "code_snippet": {"type": "string", "description": "Optional code snippet related to the question"},
-                },
-                "required": ["question"],
-            },
-        )(search_peps)
-
-        # Store tool instances for local execution
-        self._local_tools["run_pylint"] = pylint_tool
-        self._local_tools["run_mypy"] = mypy_tool
-        self._local_tools["read_file_context"] = read_tool
-        self._local_tools["search_peps"] = search_tool
-
-        # Register tool cards
-        self.add_ability(pylint_tool.card)
-        self.add_ability(mypy_tool.card)
-        self.add_ability(read_tool.card)
-        self.add_ability(search_tool.card)
-
-    async def _execute_ability(self, tool_calls: Any, session: Session) -> list[tuple[Any, ToolMessage]]:
-        """Override to handle local tool execution."""
-        import json
-
-        # Convert single tool_call to list
-        if not isinstance(tool_calls, list):
-            tool_calls = [tool_calls]
-
-        results = []
-        for tool_call in tool_calls:
-            tool_name = tool_call.name if isinstance(tool_call, ToolCall) else tool_call.get("name", "")
-
-            # Check if it's a local tool
-            if tool_name in self._local_tools:
-                local_tool = self._local_tools[tool_name]
-                # Parse arguments
-                if isinstance(tool_call, ToolCall):
-                    tool_args = (
-                        json.loads(tool_call.arguments) if isinstance(tool_call.arguments, str) else tool_call.arguments
-                    )
-                    tool_call_id = tool_call.id
-                else:
-                    tool_args = tool_call.get("arguments", {})
-                    tool_call_id = tool_call.get("id", "")
-
-                try:
-                    result = await local_tool.invoke(tool_args)
-                    tool_message = ToolMessage(content=str(result), tool_call_id=tool_call_id)
-                    results.append((result, tool_message))
-                except Exception as e:
-                    error_msg = f"Local tool execution error: {str(e)}"
-                    tool_message = ToolMessage(content=error_msg, tool_call_id=tool_call_id)
-                    results.append((None, tool_message))
-            else:
-                # Fall back to parent implementation
-                parent_results = await super()._execute_ability(tool_calls, session)
-                results.extend(parent_results if isinstance(parent_results, list) else [parent_results])
-
-        return results
+        # Register all tool cards at once
+        self.add_ability([run_pylint.card, run_mypy.card, read_file_context.card, search_peps.card])
 
     def get_searcher_agent(self) -> Optional[SearcherAgent]:
         """Get searcher agent instance."""
@@ -462,7 +425,7 @@ Be thorough, accurate, and focus on Python best practices."""
             )
 
             # Parse errors from output
-            errors = parse_mypy_output("\n".join(result.stdout, result.stderr))
+            errors = parse_mypy_output("\n".join([result.stdout, result.stderr]))
 
             return {
                 "stdout": result.stdout,
@@ -570,10 +533,15 @@ Be thorough, accurate, and focus on Python best practices."""
             self._searcher_agent = SearcherAgent(pbar=self.pbar, lock=self.lock)
 
         # Call searcher agent
+        # Get file_logger for searcher if available
+        file_logger = self._file_loggers.get(file_path)
         inputs = {
             "query": question,
             "code_snippet": code_snippet or "",
+            "file_logger": file_logger,
         }
+        if file_logger:
+            inputs["file_logger"] = file_logger
 
         try:
             result = await self._searcher_agent.invoke(inputs)
@@ -886,6 +854,17 @@ Be thorough, accurate, and focus on Python best practices."""
             # Call LLM with messages and tools from context window
             ai_message = await self._call_llm(context_window.get_messages(), context_window.get_tools() or None)
 
+            # Log LLM output (reviewer role)
+            # Try to get file_logger from inputs if available
+            file_path_for_logging = None
+            if isinstance(inputs, dict):
+                files = inputs.get("files") or inputs.get("file_list", [])
+                if files:
+                    file_path_for_logging = files[0] if isinstance(files, list) else files
+            if file_path_for_logging and file_path_for_logging in self._file_loggers:
+                output_preview = ai_message.content[:2000] + ("..." if len(ai_message.content) > 2000 else "")
+                self._file_loggers[file_path_for_logging].info("[REVIEWER] LLM invoke output:\n%s", output_preview)
+
             # Extract and clean up reasoning from AI message content
             cleaned_content, reasoning = extract_reasoning_content(ai_message.content)
 
@@ -947,24 +926,28 @@ Be thorough, accurate, and focus on Python best practices."""
         Returns:
             Dict with 'file_path', 'errors', 'questions', 'pep_results', 'proposed_changes', 'report'
         """
-        # Check if file exists
-        if not Path(file_path).exists():
-            return {
-                "file_path": file_path,
-                "errors": [],
-                "questions": [],
-                "pep_results": {},
-                "proposed_changes": [],
-                "report": f"# Code Review Report: {file_path}\n\n**Error**: File not found.",
-            }
+        # Store current file path for tool access
+        old_file_path = self._current_file_path
+        self._current_file_path = file_path
+        try:
+            # Check if file exists
+            if not Path(file_path).exists():
+                return {
+                    "file_path": file_path,
+                    "errors": [],
+                    "questions": [],
+                    "pep_results": {},
+                    "proposed_changes": [],
+                    "report": f"# Code Review Report: {file_path}\n\n**Error**: File not found.",
+                }
 
-        # Use LLM to review the file - LLM will use tools to:
-        # 1. Run pylint
-        # 2. Read file context for errors
-        # 3. Search PEPs for guidelines
-        # 4. Generate recommendations
+            # Use LLM to review the file - LLM will use tools to:
+            # 1. Run pylint
+            # 2. Read file context for errors
+            # 3. Search PEPs for guidelines
+            # 4. Generate recommendations
 
-        user_query = f"""Please review the Python file: {file_path}
+            user_query = f"""Please review the Python file: {file_path}
 
 Your task:
 1a. Use run_pylint tool to check for linting errors
@@ -979,75 +962,94 @@ Your task:
 
 Format your response as a detailed markdown report."""
 
-        try:
-            # Create a session (required by upstream API)
-            import uuid
+            try:
+                # Create a session (required by upstream API)
+                import uuid
 
-            session = AgentSession(session_id=f"review_{uuid.uuid4().hex[:8]}")
+                session = AgentSession(session_id=f"review_{uuid.uuid4().hex[:8]}")
 
-            # Use our overridden invoke method which cleans up reasoning
-            llm_result = await self.invoke({"query": user_query}, session=session)
-            llm_output = llm_result.get("output", "")
-            llm_reasoning = llm_result.get("reasoning")
+                # Use our overridden invoke method which cleans up reasoning
+                llm_result = await self.invoke({"query": user_query}, session=session)
+                llm_output = llm_result.get("output", "")
+                llm_reasoning = llm_result.get("reasoning")
 
-            # Run pylint ourselves to get structured error data (for compatibility with existing code)
-            pylint_result = await self._run_pylint(file_path)
-            errors = pylint_result.get("errors", [])
+                # Log LLM output (reviewer role)
+                if file_path in self._file_loggers:
+                    output_preview = llm_output[:2000] + ("..." if len(llm_output) > 2000 else "")
+                    self._file_loggers[file_path].info(
+                        "[REVIEWER] LLM invoke output (from _review_file):\n%s", output_preview
+                    )
 
-            # Run mypy
-            mypy_result = await self._run_mypy(file_path)
-            mypy_errors = mypy_result.get("errors", [])
+                # Run pylint ourselves to get structured error data (for compatibility with existing code)
+                pylint_result = await self._run_pylint(file_path)
+                errors = pylint_result.get("errors", [])
 
-            # Generate a structured report from LLM output
-            no_issues = "\n\n✅ No issues found by pylint or mypy." if not errors and not mypy_errors else ""
-            sep = "\n" + "-" * 80 + "\n"
-            report = f"# Code Review Report:\n`{file_path}`{no_issues}\n\n{llm_output}"
+                # Run mypy
+                mypy_result = await self._run_mypy(file_path)
+                mypy_errors = mypy_result.get("errors", [])
 
-            if not errors and not mypy_errors:
+                # Generate a structured report from LLM output
+                no_issues = "\n\n✅ No issues found by pylint or mypy." if not errors and not mypy_errors else ""
+                sep = "\n" + "-" * 80 + "\n"
+                report = f"# Code Review Report:\n`{file_path}`{no_issues}\n\n{llm_output}"
+
+                if not errors and not mypy_errors:
+                    return {
+                        "file_path": file_path,
+                        "errors": [],
+                        "questions": [],
+                        "pep_results": {},
+                        "proposed_changes": [],
+                        "report": report,
+                        "pylint_result": pylint_result,
+                        "mypy_result": mypy_result,
+                    }
+
+                # Extract proposed changes from LLM output (basic parsing)
+                # In a full implementation, the LLM would structure this better or we'd parse tool call results
+                proposed_changes = self._extract_changes_from_llm_output(llm_output, errors)
+
+                # Extract PEP references from LLM output
+                pep_refs = self._extract_pep_references_from_llm_output(llm_output)
+                if pep_refs:
+                    report += f"\n{sep}\n## The following PEPs were referenced in this review:\n"
+                    for ref in sorted(pep_refs, key=lambda x: int(x["number"])):
+                        report += f"- [PEP {ref['number']}]({ref['url']})\n"
+
+                if llm_reasoning:
+                    report += "\n" + sep + f"\n**Tomato Reviewer's Thinking Process:**\n{llm_reasoning}\n" + sep
+
                 return {
                     "file_path": file_path,
-                    "errors": [],
-                    "questions": [],
-                    "pep_results": {},
-                    "proposed_changes": [],
+                    "errors": errors,
+                    "questions": [],  # LLM handles this internally
+                    "pep_results": {},  # LLM handles this internally
+                    "proposed_changes": proposed_changes,
+                    "pep_references": pep_refs,
                     "report": report,
                     "pylint_result": pylint_result,
                     "mypy_result": mypy_result,
                 }
-
-            # Extract proposed changes from LLM output (basic parsing)
-            # In a full implementation, the LLM would structure this better or we'd parse tool call results
-            proposed_changes = self._extract_changes_from_llm_output(llm_output, errors)
-
-            # Extract PEP references from LLM output
-            pep_refs = self._extract_pep_references_from_llm_output(llm_output)
-            if pep_refs:
-                report += f"\n{sep}\n## The following PEPs were referenced in this review:\n"
-                for ref in sorted(pep_refs, key=lambda x: int(x["number"])):
-                    report += f"- [PEP {ref['number']}]({ref['url']})\n"
-
-            if llm_reasoning:
-                report += "\n" + sep + f"\n**Tomato Reviewer's Thinking Process:**\n{llm_reasoning}\n" + sep
-
-            return {
-                "file_path": file_path,
-                "errors": errors,
-                "questions": [],  # LLM handles this internally
-                "pep_results": {},  # LLM handles this internally
-                "proposed_changes": proposed_changes,
-                "pep_references": pep_refs,
-                "report": report,
-                "pylint_result": pylint_result,
-                "mypy_result": mypy_result,
-            }
-        except JiuWenBaseException:
+            except (JiuWenBaseException, BaseError):
+                raise
+            except Exception as e:
+                self._file_loggers[file_path].error("LLM review failed for %s: %s", file_path, e)
+                if DEBUG_MODE:
+                    raise e
+                # Fallback to rule-based review
+                return await self._review_file_rule_based(file_path)
+        except (JiuWenBaseException, BaseError):
             raise
         except Exception as e:
-            self._file_loggers[file_path].error("LLM review failed for %s: %s", file_path, e)
+            if file_path in self._file_loggers:
+                self._file_loggers[file_path].error("Review failed for %s: %s", file_path, e)
             if DEBUG_MODE:
                 raise e
             # Fallback to rule-based review
             return await self._review_file_rule_based(file_path)
+        finally:
+            # Restore previous file path
+            self._current_file_path = old_file_path
 
     def _extract_changes_from_llm_output(self, llm_output: str, errors: List[Dict[str, str]]) -> List[Dict[str, Any]]:
         """Extract proposed changes from LLM output.
@@ -1160,7 +1162,7 @@ Format your response as a detailed markdown report."""
                 # Track if search failed
                 if pep_summary and ("Error:" in pep_summary or "error" in pep_summary.lower()):
                     pep_search_errors.append(question)
-            except JiuWenBaseException:
+            except (JiuWenBaseException, BaseError):
                 raise
             except Exception as e:
                 # PEP search failed - log and continue, but mark as error
@@ -1373,6 +1375,7 @@ Format your response as a detailed markdown report."""
                     {
                         "file_path": current_file_path,
                         "proposed_changes": current_proposed_changes,
+                        "file_logger": file_logger,
                     }
                 )
 

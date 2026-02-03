@@ -1,25 +1,28 @@
 # TomatoReviewer
-**代码仓**：https://gitcode.com/SushiNinja/TomatoReviewer
+**代码仓**：
+- https://gitcode.com/SushiNinja/TomatoReviewer
+- https://github.com/Trenza1ore/TomatoReviewer
 
-**TomatoReviewer** 是一个智能的 Python 代码检视工具，它结合了静态分析和基于大语言模型（LLM）的推理，提供基于PEP（Python增强提案）的全面代码检视以及自动修复功能。
+**TomatoReviewer** 是一个智能的 Python 代码检视工具，它结合了静态分析和基于大语言模型（LLM）的推理，提供基于 PEP（Python 增强提案）的全面代码检视以及自动修复功能。
 
 - [English Version](README.md)
 - [中文版](README.zh.md)
 
 ## 概述
 
-TomatoReviewer 使用由大语言模型（LLM）驱动的多智能体架构来检视 Python 代码、识别问题并自动应用修复。与传统的代码检查工具不同，它利用基于 [openJiuwen 知识库框架](https://gitcode.com/openJiuwen/agent-core) 构建的 PEP 知识库，提供符合 Python 最佳实践的合理建议。
+TomatoReviewer 使用由大语言模型（LLM）驱动的多智能体架构来检视 Python 代码、识别问题并自动应用修复。与传统的代码检查工具不同，它利用基于 [openJiuwen 知识库框架](https://gitcode.com/openJiuwen/agent-core) 构建的 PEP 知识库，提供符合 Python 最佳实践的专业建议。
 
-本项目旨在作为一个参考实现，展示如何构建一个可自动更新和维护的知识库系统。通过整合 openJiuwen 知识库框架，我们实现了对 Python PEP 文档的自动化索引、检索和应用，为开发者提供了一个完整的知识库应用范例。我们希望这个项目能够起到抛砖引玉的作用，启发更多开发者基于 open Jiuwen 知识库框架构建自己的知识库应用，探索知识库在代码检视、文档检索、智能问答等场景中的更多可能性，推动知识库技术在软件开发工具链中的更广泛应用。
+本项目旨在作为一个参考实现，展示如何构建一个可自动更新和维护的知识库系统。通过整合 openJiuwen 知识库框架，我们实现了对 Python PEP 文档的自动化索引、检索和应用，为开发者提供了一个完整的知识库应用范例。我们希望这个项目能够起到抛砖引玉的作用，启发更多开发者基于 openJiuwen 知识库框架构建自己的知识库应用，探索知识库在代码检视、文档检索、智能问答等场景中的更多可能性，推动知识库技术在软件开发工具链中的更广泛应用。
 
 ## 核心特性
 
-- **基于 LLM 的检视**：使用 ReActAgent 框架进行智能代码分析和推理
-- **PEP 感知**：搜索并引用每个问题的相关 PEP 指南
-- **自动修复**：基于检视意见迭代应用修复
+- **基于 LLM 的代码检视**：使用 ReActAgent 框架进行智能代码分析和推理
+- **遵循 PEP 规范**：搜索并引用每个问题相关的 PEP 指南
+- **自动修复**：基于检视建议迭代应用修复
 - **详细报告**：生成包含 PEP 引用的详细 Markdown 报告
 - **安全操作**：在修改文件前创建备份
 - **代码测试**：通过运行代码验证修复，确保功能保持完整
+- **智能配置检测**：自动检测并使用项目特定的 pylint 和 mypy 配置文件，并提供合理的默认配置作为后备
 
 ## 技术栈
 
@@ -28,6 +31,7 @@ TomatoReviewer 基于以下技术构建：
 - **[openJiuwen](https://gitcode.com/openJiuwen/agent-core)**：智能体框架和知识库系统。PEP 知识库功能利用 openJiuwen 的知识库框架提供向量存储、语义向量模型和混合搜索功能。
 - **pylint**：静态代码分析
 - **ruff**：快速的 Python 代码检查器和格式化工具
+- **mypy**：静态类型检查器
 
 ## 工作原理
 
@@ -35,22 +39,26 @@ TomatoReviewer 采用三个专门的智能体：
 
 1. **ReviewerAgent**：使用 pylint 分析代码，搜索 PEP 知识库查找相关指南，并生成包含修复建议的全面检视报告
 2. **SearcherAgent**：搜索 PEP 知识库（由 openJiuwen 知识库框架提供支持）以查找相关的编码约定和最佳实践
-3. **FixerAgent**：使用 LLM 推理应用修复，结合检视者指令和 PEP 上下文，并测试修复以确保代码仍然正常工作
+3. **FixerAgent**：使用 LLM 推理应用修复，结合检视建议和 PEP 上下文，并测试修复以确保代码仍然正常工作
 
 该工具遵循迭代的检视-修复循环：检视文件，应用修复，再次检视，重复此过程直到问题解决或达到最大迭代限制。
 
-PEP 知识库使用 [openJiuwen 知识库框架](https://gitcode.com/openJiuwen/agent-core) 构建，该框架提供向量存储、embedding模型和混合搜索功能，用于高效检索相关的 PEP 指南。
+PEP 知识库使用 [openJiuwen 知识库框架](https://gitcode.com/openJiuwen/agent-core) 构建，该框架提供向量存储、语义向量模型和混合搜索功能，用于高效检索相关的 PEP 指南。
 
 ## 安装
 
 使用 `pip`：
 ```bash
 pip install git+https://gitcode.com/SushiNinja/TomatoReviewer.git@main
+# 或
+pip install git+https://github.com/Trenza1ore/TomatoReviewer.git@main
 ```
 
 使用 `uv`：
 ```bash
 uv pip install git+https://gitcode.com/SushiNinja/TomatoReviewer.git@main
+# 或
+uv pip install git+https://github.com/Trenza1ore/TomatoReviewer.git@main
 ```
 
 ## 使用方法
@@ -84,13 +92,17 @@ tomato-review *.py --config-file /path/to/config.yaml
 ### 命令行选项
 
 - `-h, --help`：显示帮助信息并退出
-- `-m MAX_ITER, --max-iter MAX_ITER`：文件修复的最大迭代次数（默认：10）
+- `-m MAX_ITER, --max-iter MAX_ITER`：文件检视-修复循环的最大迭代次数（默认：5）
+- `-s MAX_ITER, --searcher-max-iter MAX_ITER`：搜索智能体的最大迭代次数（默认：5）
+- `-f MAX_ITER, --fixer-max-iter MAX_ITER`：修复智能体的最大迭代次数（默认：50）
 - `-b MINI_BATCH, --mini-batch MINI_BATCH`：同时处理的文件小批量大小（默认：20）
 - `--no-fix`：仅检视文件，不应用修复
 - `--build`：从头构建知识库
 - `--config-file CONFIG_FILE`：配置文件路径（tomato.yaml、.tomato.yaml 或 pyproject.toml）
 
 ## 配置
+
+### TomatoReviewer 配置
 
 在项目根目录创建 `.tomato.yaml`、`tomato.yaml` 或在 `pyproject.toml` 中添加配置。以下是示例配置 - 请根据您的设置调整值：
 
@@ -113,6 +125,22 @@ tomato-review:
   verify_ssl: false
   ssl_cert: null
 ```
+
+### Pylint 和 mypy 配置
+
+TomatoReviewer 会自动检测并按以下顺序使用 pylint 和 mypy 的配置文件：
+
+**Pylint 配置：**
+1. 当前工作目录中的 `.pylintrc`、`pylintrc`、`.pylintrc.toml` 或 `pylintrc.toml`
+2. 包含 `[tool.pylint]` 部分的 `pyproject.toml`（由 pylint 自动检测）
+3. TomatoReviewer 内置的默认 `.pylintrc`（后备方案）
+
+**Mypy 配置：**
+1. 当前工作目录中的 `.mypy.ini` 或 `mypy.ini`
+2. 包含 `[tool.mypy]` 部分的 `pyproject.toml`（由 mypy 自动检测）
+3. TomatoReviewer 内置的默认 `.mypy.ini`（后备方案）
+
+如果未找到项目特定的配置文件，TomatoReviewer 将使用其内置的默认配置，以确保代码分析的一致性。
 
 ## 输出
 

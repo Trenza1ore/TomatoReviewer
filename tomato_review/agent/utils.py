@@ -1,11 +1,13 @@
-"""Utility functions for agent modules."""
+"""
+Utility functions for agent modules.
+"""
 
 import logging
 import os
 import re
 import shutil
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Literal, Optional
 
 from openjiuwen.core.single_agent import ReActAgentConfig
 
@@ -215,7 +217,7 @@ def get_env_var(var_name: str, required: bool = True) -> str:
     return value or ""
 
 
-def configure_from_env(config: ReActAgentConfig) -> None:
+def configure_from_env(config: ReActAgentConfig, role: Literal["review", "search", "fix"] = "review") -> None:
     """Configure ReActAgentConfig from environment variables.
 
     Args:
@@ -230,6 +232,7 @@ def configure_from_env(config: ReActAgentConfig) -> None:
     model_provider = get_env_var("MODEL_PROVIDER", required=True)
     verify_ssl = get_env_var("VERIFY_SSL", required=False)
     ssl_cert = get_env_var("SSL_CERT", required=False)
+    max_iter = get_env_var("REACT_MAX_ITER_" + role.upper(), required=True)
 
     config.configure_model_client(
         provider=model_provider,
@@ -240,6 +243,8 @@ def configure_from_env(config: ReActAgentConfig) -> None:
     )
     if ssl_cert == "true":
         config.model_client_config.ssl_cert = ssl_cert
+    if max_iter:
+        config.max_iterations = int(max_iter)
 
 
 def extract_reasoning_content(content: str, reasoning_pattern: str = r"<think>(.*)</think>") -> tuple[str, str]:

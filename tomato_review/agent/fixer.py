@@ -1,4 +1,5 @@
-"""FixerAgent: Agent for generating fixed versions of code files.
+"""
+FixerAgent: Agent for generating fixed versions of code files.
 
 This agent takes review results and applies fixes to generate corrected versions
 of Python files based on PEP guidelines.
@@ -12,9 +13,8 @@ import threading
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from openjiuwen.core.foundation.llm import ToolCall, ToolMessage
 from openjiuwen.core.foundation.tool import tool
-from openjiuwen.core.session.session import Session
+from openjiuwen.core.runner import Runner
 from openjiuwen.core.single_agent.agents.react_agent import ReActAgent, ReActAgentConfig
 from openjiuwen.core.single_agent.schema.agent_card import AgentCard
 from tqdm import tqdm
@@ -22,6 +22,7 @@ from tqdm import tqdm
 from tomato_review.agent.session import AgentSession
 from tomato_review.agent.utils import (
     configure_from_env,
+    extract_reasoning_content,
     get_mypy_config_path,
     get_pylint_config_path,
     parse_mypy_output,
@@ -102,9 +103,6 @@ class FixerAgent(ReActAgent):
         self.pbar = pbar
         self.lock = lock
 
-        # Store tool instances for local execution
-        self._local_tools: Dict[str, Any] = {}
-
         # Configure agent if config provided
         if config is not None:
             self.config = config
@@ -112,7 +110,7 @@ class FixerAgent(ReActAgent):
         else:
             # Set default configuration
             default_config = ReActAgentConfig()
-            configure_from_env(default_config)
+            configure_from_env(default_config, role="fix")
             self.config = default_config
             self.configure(default_config)
 
@@ -122,7 +120,9 @@ class FixerAgent(ReActAgent):
 
     def _setup_prompt(self):
         """Set up system prompt for LLM reasoning."""
-        system_prompt = """You are an expert Python code fixer. Your task is to apply fixes to Python code based on review recommendations from the ReviewerAgent and PEP guidelines from the SearcherAgent.
+        system_prompt = f"""You are an expert Python code fixer. Your task is to apply fixes to Python code based on review recommendations from the ReviewerAgent and PEP guidelines from the SearcherAgent.
+
+**You have {round(self.config.max_iterations * 0.8)} tool usage quota to fix the file, DO NOT WASTE THEM**
 
 When fixing code:
 1. Use read_file to read the current file content
@@ -158,6 +158,15 @@ Be precise and careful - don't break working code. When in doubt, preserve the o
         agent_instance = self
 
         # Tool: Read file
+        @tool(
+            name="read_file",
+            description="Read the contents of a Python file.",
+            input_params={
+                "type": "object",
+                "properties": {"file_path": {"type": "string", "description": "Path to the file to read"}},
+                "required": ["file_path"],
+            },
+        )
         async def read_file(file_path: str) -> str:
             """Read the contents of a file.
 
@@ -170,7 +179,26 @@ Be precise and careful - don't break working code. When in doubt, preserve the o
             with open(file_path, "r", encoding="utf-8") as f:
                 return f.read()
 
+        read_file.card.id = "read_file"
+
         # Tool: Read file context
+        @tool(
+            name="read_file_context",
+            description="Read a file with context around a specific line number. Useful for understanding code context when applying fixes.",
+            input_params={
+                "type": "object",
+                "properties": {
+                    "file_path": {"type": "string", "description": "Path to the file to read"},
+                    "line_num": {"type": "integer", "description": "Line number (1-indexed) to get context around"},
+                    "context_lines": {
+                        "type": "integer",
+                        "description": "Number of lines before and after to include (default: 5)",
+                        "default": 5,
+                    },
+                },
+                "required": ["file_path", "line_num"],
+            },
+        )
         async def read_file_context(file_path: str, line_num: int, context_lines: int = 5) -> str:
             """Read file content with context around a specific line.
 
@@ -187,7 +215,21 @@ Be precise and careful - don't break working code. When in doubt, preserve the o
             context = agent_instance.read_file_context_tool(file_path, line_num, context_lines)
             return json.dumps(context, indent=2)
 
+        read_file_context.card.id = "read_file_context"
+
         # Tool: Write file
+        @tool(
+            name="write_file",
+            description="Write content to a Python file. Use this to apply fixes.",
+            input_params={
+                "type": "object",
+                "properties": {
+                    "file_path": {"type": "string", "description": "Path to the file to write"},
+                    "content": {"type": "string", "description": "Content to write to the file"},
+                },
+                "required": ["file_path", "content"],
+            },
+        )
         async def write_file(file_path: str, content: str) -> str:
             """Write content to a file.
 
@@ -202,7 +244,18 @@ Be precise and careful - don't break working code. When in doubt, preserve the o
                 f.write(content.strip() + "\n")
             return f"Successfully wrote {len(content)} characters to {file_path}"
 
+        write_file.card.id = "write_file"
+
         # Tool: Run pylint
+        @tool(
+            name="run_pylint",
+            description="Run pylint to check for remaining errors after applying fixes.",
+            input_params={
+                "type": "object",
+                "properties": {"file_path": {"type": "string", "description": "Path to the file to check"}},
+                "required": ["file_path"],
+            },
+        )
         async def run_pylint(file_path: str) -> str:
             """Run pylint on a file to check for remaining errors.
 
@@ -218,7 +271,18 @@ Be precise and careful - don't break working code. When in doubt, preserve the o
             errors = result.get("errors", [])
             return json.dumps({"errors": errors, "count": len(errors)}, indent=2)
 
+        run_pylint.card.id = "run_pylint"
+
         # Tool: Run mypy
+        @tool(
+            name="run_mypy",
+            description="Run mypy type checker to check for type errors after applying fixes.",
+            input_params={
+                "type": "object",
+                "properties": {"file_path": {"type": "string", "description": "Path to the file to check"}},
+                "required": ["file_path"],
+            },
+        )
         async def run_mypy(file_path: str) -> str:
             """Run mypy type checker on a file to check for type errors.
 
@@ -234,7 +298,18 @@ Be precise and careful - don't break working code. When in doubt, preserve the o
             errors = result.get("errors", [])
             return json.dumps({"errors": errors, "count": len(errors)}, indent=2)
 
+        run_mypy.card.id = "run_mypy"
+
         # Tool: Run ruff format
+        @tool(
+            name="run_ruff_format",
+            description="Format a Python file using ruff format.",
+            input_params={
+                "type": "object",
+                "properties": {"file_path": {"type": "string", "description": "Path to the file to format"}},
+                "required": ["file_path"],
+            },
+        )
         async def run_ruff_format(file_path: str) -> str:
             """Format a file using ruff format.
 
@@ -249,7 +324,18 @@ Be precise and careful - don't break working code. When in doubt, preserve the o
                 return "File formatted successfully"
             return f"Formatting failed: {result.get('stderr', 'Unknown error')}"
 
+        run_ruff_format.card.id = "run_ruff_format"
+
         # Tool: Run ruff check --fix
+        @tool(
+            name="run_ruff_check_fix",
+            description="Auto-fix issues in a Python file using ruff check --fix.",
+            input_params={
+                "type": "object",
+                "properties": {"file_path": {"type": "string", "description": "Path to the file to fix"}},
+                "required": ["file_path"],
+            },
+        )
         async def run_ruff_check_fix(file_path: str) -> str:
             """Auto-fix issues in a file using ruff check --fix.
 
@@ -263,105 +349,10 @@ Be precise and careful - don't break working code. When in doubt, preserve the o
             fixed_count = result.get("fixed_count", 0)
             return f"Ruff auto-fixed {fixed_count} issue(s)"
 
+        run_ruff_check_fix.card.id = "run_ruff_check_fix"
+
         # Tool: Run Python code
-        async def run_code(code_or_file: str, is_file: bool = True) -> str:
-            """Execute Python code or run a Python file using the current Python environment.
-
-            Args:
-                code_or_file: Either a file path to execute, or Python code as a string
-                is_file: If True, treat code_or_file as a file path. If False, treat as code string.
-
-            Returns:
-                JSON string with execution results including stdout, stderr, returncode, and success status
-            """
-            import json
-
-            result = await agent_instance.run_code_tool(code_or_file, is_file)
-            return json.dumps(result, indent=2)
-
-        # Create and register tools
-        read_tool = tool(
-            name="read_file",
-            description="Read the contents of a Python file.",
-            input_params={
-                "type": "object",
-                "properties": {"file_path": {"type": "string", "description": "Path to the file to read"}},
-                "required": ["file_path"],
-            },
-        )(read_file)
-
-        read_context_tool = tool(
-            name="read_file_context",
-            description="Read a file with context around a specific line number. Useful for understanding code context when applying fixes.",
-            input_params={
-                "type": "object",
-                "properties": {
-                    "file_path": {"type": "string", "description": "Path to the file to read"},
-                    "line_num": {"type": "integer", "description": "Line number (1-indexed) to get context around"},
-                    "context_lines": {
-                        "type": "integer",
-                        "description": "Number of lines before and after to include (default: 5)",
-                        "default": 5,
-                    },
-                },
-                "required": ["file_path", "line_num"],
-            },
-        )(read_file_context)
-
-        write_tool = tool(
-            name="write_file",
-            description="Write content to a Python file. Use this to apply fixes.",
-            input_params={
-                "type": "object",
-                "properties": {
-                    "file_path": {"type": "string", "description": "Path to the file to write"},
-                    "content": {"type": "string", "description": "Content to write to the file"},
-                },
-                "required": ["file_path", "content"],
-            },
-        )(write_file)
-
-        pylint_tool = tool(
-            name="run_pylint",
-            description="Run pylint to check for remaining errors after applying fixes.",
-            input_params={
-                "type": "object",
-                "properties": {"file_path": {"type": "string", "description": "Path to the file to check"}},
-                "required": ["file_path"],
-            },
-        )(run_pylint)
-
-        mypy_tool = tool(
-            name="run_mypy",
-            description="Run mypy type checker to check for type errors after applying fixes.",
-            input_params={
-                "type": "object",
-                "properties": {"file_path": {"type": "string", "description": "Path to the file to check"}},
-                "required": ["file_path"],
-            },
-        )(run_mypy)
-
-        ruff_format_tool = tool(
-            name="run_ruff_format",
-            description="Format a Python file using ruff format.",
-            input_params={
-                "type": "object",
-                "properties": {"file_path": {"type": "string", "description": "Path to the file to format"}},
-                "required": ["file_path"],
-            },
-        )(run_ruff_format)
-
-        ruff_fix_tool = tool(
-            name="run_ruff_check_fix",
-            description="Auto-fix issues in a Python file using ruff check --fix.",
-            input_params={
-                "type": "object",
-                "properties": {"file_path": {"type": "string", "description": "Path to the file to fix"}},
-                "required": ["file_path"],
-            },
-        )(run_ruff_check_fix)
-
-        run_code_tool = tool(
+        @tool(
             name="run_code",
             description="Execute Python code or run a Python file using the current Python environment. Use this to test if your fixes work correctly by running the code.",
             input_params={
@@ -379,67 +370,47 @@ Be precise and careful - don't break working code. When in doubt, preserve the o
                 },
                 "required": ["code_or_file"],
             },
-        )(run_code)
+        )
+        async def run_code(code_or_file: str, is_file: bool = True) -> str:
+            """Execute Python code or run a Python file using the current Python environment.
 
-        # Store tool instances for local execution
-        self._local_tools["read_file"] = read_tool
-        self._local_tools["read_file_context"] = read_context_tool
-        self._local_tools["write_file"] = write_tool
-        self._local_tools["run_pylint"] = pylint_tool
-        self._local_tools["run_mypy"] = mypy_tool
-        self._local_tools["run_ruff_format"] = ruff_format_tool
-        self._local_tools["run_ruff_check_fix"] = ruff_fix_tool
-        self._local_tools["run_code"] = run_code_tool
+            Args:
+                code_or_file: Either a file path to execute, or Python code as a string
+                is_file: If True, treat code_or_file as a file path. If False, treat as code string.
 
-        # Register tool cards
-        self.add_ability(read_tool.card)
-        self.add_ability(read_context_tool.card)
-        self.add_ability(write_tool.card)
-        self.add_ability(pylint_tool.card)
-        self.add_ability(mypy_tool.card)
-        self.add_ability(ruff_format_tool.card)
-        self.add_ability(ruff_fix_tool.card)
-        self.add_ability(run_code_tool.card)
+            Returns:
+                JSON string with execution results including stdout, stderr, returncode, and success status
+            """
+            import json
 
-    async def _execute_ability(self, tool_calls: Any, session: Session) -> list[tuple[Any, ToolMessage]]:
-        """Override to handle local tool execution."""
-        import json
+            result = await agent_instance.run_code_tool(code_or_file, is_file)
+            return json.dumps(result, indent=2)
 
-        # Convert single tool_call to list
-        if not isinstance(tool_calls, list):
-            tool_calls = [tool_calls]
+        run_code.card.id = "run_code"
 
-        results = []
-        for tool_call in tool_calls:
-            tool_name = tool_call.name if isinstance(tool_call, ToolCall) else tool_call.get("name", "")
+        # Register tools with resource manager
+        Runner.resource_mgr.add_tool(read_file)
+        Runner.resource_mgr.add_tool(read_file_context)
+        Runner.resource_mgr.add_tool(write_file)
+        Runner.resource_mgr.add_tool(run_pylint)
+        Runner.resource_mgr.add_tool(run_mypy)
+        Runner.resource_mgr.add_tool(run_ruff_format)
+        Runner.resource_mgr.add_tool(run_ruff_check_fix)
+        Runner.resource_mgr.add_tool(run_code)
 
-            # Check if it's a local tool
-            if tool_name in self._local_tools:
-                local_tool = self._local_tools[tool_name]
-                # Parse arguments
-                if isinstance(tool_call, ToolCall):
-                    tool_args = (
-                        json.loads(tool_call.arguments) if isinstance(tool_call.arguments, str) else tool_call.arguments
-                    )
-                    tool_call_id = tool_call.id
-                else:
-                    tool_args = tool_call.get("arguments", {})
-                    tool_call_id = tool_call.get("id", "")
-
-                try:
-                    result = await local_tool.invoke(tool_args)
-                    tool_message = ToolMessage(content=str(result), tool_call_id=tool_call_id)
-                    results.append((result, tool_message))
-                except Exception as e:
-                    error_msg = f"Local tool execution error: {str(e)}"
-                    tool_message = ToolMessage(content=error_msg, tool_call_id=tool_call_id)
-                    results.append((None, tool_message))
-            else:
-                # Fall back to parent implementation
-                parent_results = await super()._execute_ability(tool_calls, session)
-                results.extend(parent_results if isinstance(parent_results, list) else [parent_results])
-
-        return results
+        # Register all tool cards at once
+        self.add_ability(
+            [
+                read_file.card,
+                read_file_context.card,
+                write_file.card,
+                run_pylint.card,
+                run_mypy.card,
+                run_ruff_format.card,
+                run_ruff_check_fix.card,
+                run_code.card,
+            ]
+        )
 
     async def run_pylint_tool(self, file_path: str) -> Dict[str, Any]:
         """Public method for running pylint (used by tools)."""
@@ -1142,6 +1113,7 @@ Be precise and careful - don't break working code. When in doubt, preserve the o
                 "changes_applied": 0,
                 "message": "No proposed changes to apply",
             }
+        original_content = Path(file_path).read_text(encoding="utf-8")
 
         # Format proposed changes with PEP context for LLM
         changes_summary = self._format_proposed_changes_for_llm(proposed_changes)
@@ -1167,7 +1139,10 @@ Important:
 - Preserve code logic and functionality - test with run_code to verify
 - Address all {len(proposed_changes)} issues systematically
 - Be precise and careful - don't break working code
-- Always test your fixes with run_code before finalizing"""
+- Always test your fixes with run_code before finalizing
+- Remember, you only have {round(self.config.max_iterations * 0.8)} tool usage quota to fix the file
+- If nearing tool usage quota, make sure file content is not worse than before and end your task
+- To end your task, report what you have fixed without calling any tool"""
         if "qwen3" in self.config.model_name.casefold():
             user_query += " /no_think"
 
@@ -1180,6 +1155,20 @@ Important:
         try:
             # Use parent's ReAct loop - LLM will reason and use tools
             llm_result = await super().invoke({"query": user_query}, session=session)
+            if llm_result.get("result_type") == "error":
+                current_content = Path(file_path).read_text(encoding="utf-8")
+                query = f"<orginal>\n{original_content}\n</orginal>\n<modified>\n{current_content}\n</modified>\n"
+                query += "Given the provided original content and modified content, summarize the changes made."
+                summary = await self._call_llm(self.config.prompt_template + [dict(role="user", content=query)])
+                llm_result["output"] = extract_reasoning_content(summary.content)[0]
+                llm_result["result_type"] = "fallback"
+
+            # Log LLM output (fixer role)
+            if file_logger:
+                result_type = llm_result.get("result_type", "unknown")
+                llm_output = llm_result.get("output", "")
+                output_preview = llm_output[:2000] + ("..." if len(llm_output) > 2000 else "")
+                file_logger.info("[FIXER] LLM invoke output (%s):\n%s", result_type, output_preview)
 
             # Check if file was actually modified by reading it
             fixed_content = None

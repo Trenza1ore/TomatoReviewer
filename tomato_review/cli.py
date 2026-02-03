@@ -202,8 +202,24 @@ Examples:
         "-m",
         "--max-iter",
         type=int,
-        default=10,
-        help="Maximum iterations of file fixing (default: 10)",
+        default=5,
+        help="Maximum iterations of file review-fix cycles (default: 5)",
+    )
+
+    parser.add_argument(
+        "-s",
+        "--searcher-max-iter",
+        type=int,
+        default=5,
+        help="Maximum iterations of searcher agent (default: 5)",
+    )
+
+    parser.add_argument(
+        "-f",
+        "--fixer-max-iter",
+        type=int,
+        default=50,
+        help="Maximum iterations of fixer agent (default: 50)",
     )
 
     parser.add_argument(
@@ -439,6 +455,9 @@ Examples:
         raise e
 
     # Initialize agents
+    os.environ["REACT_MAX_ITER_REVIEW"] = str(args.max_iter)
+    os.environ["REACT_MAX_ITER_SEARCH"] = str(args.searcher_max_iter)
+    os.environ["REACT_MAX_ITER_FIX"] = str(args.fixer_max_iter)
     with tqdm(total=len(files), desc="Reviewing files", unit="file") as pbar:
         try:
             print("\nInitializing agents...")
@@ -446,7 +465,6 @@ Examples:
             reviewer = ReviewerAgent(
                 searcher_agent=searcher,
                 generate_fixed_files=not args.no_fix,
-                max_iterations=args.max_iter,
                 pbar=pbar,
             )
             print("✓ Agents initialized\n")

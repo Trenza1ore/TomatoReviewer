@@ -6,7 +6,7 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from openjiuwen.core.common.logging import retrieval_logger
-from openjiuwen.core.retrieval import VLLMEmbedding
+from openjiuwen.core.retrieval import OpenAIEmbedding
 from openjiuwen.core.retrieval.common.config import (
     EmbeddingConfig,
     KnowledgeBaseConfig,
@@ -19,6 +19,7 @@ from openjiuwen.core.retrieval.indexing.processor.chunker.chunking import TextCh
 from openjiuwen.core.retrieval.indexing.processor.parser.auto_file_parser import AutoFileParser
 from openjiuwen.core.retrieval.simple_knowledge_base import SimpleKnowledgeBase
 from openjiuwen.core.retrieval.vector_store.milvus_store import MilvusVectorStore
+
 from tomato_review import DEBUG_MODE
 
 from .get_pep_index import CacheManager
@@ -92,7 +93,7 @@ class PEPKnowledgeBase:
             api_key=embedding_api_key,
             base_url=embedding_base_url,
         )
-        self.embed_model = VLLMEmbedding(
+        self.embed_model = OpenAIEmbedding(
             config=embedding_config,
             max_retries=10,
             timeout=60,
@@ -376,7 +377,7 @@ class PEPKnowledgeBase:
             retrieval_logger.info("No PEPs need updating.")
             return stats
 
-        retrieval_logger.info("Found %d PEPs to update", len(pep_numbers_to_update))
+        retrieval_logger.info("Found %d PEPs to update: %r", len(pep_numbers_to_update), pep_numbers_to_update)
 
         # Get all current PEP documents
         all_pep_documents = build_pep_documents(self.cache_manager, filter_status=filter_status)
@@ -444,6 +445,7 @@ class PEPKnowledgeBase:
         retrieval_logger.info(
             "Update complete:\n\tUpdated: %d\n\tAdded: %d\n\tSkipped: %d\n\tErrors: %d",
             len(stats["updated"]),
+            len(stats["added"]),
             stats["skipped"],
             len(stats["errors"]),
         )
