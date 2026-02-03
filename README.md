@@ -1,9 +1,10 @@
 # TomatoReviewer
 
+[English Version](README.md) | [中文版](README.zh.md)
+
 **TomatoReviewer** is an intelligent Python code review tool that combines static analysis with LLM-powered reasoning to provide comprehensive code reviews and automatic fixes based on Python Enhancement Proposals (PEPs).
 
-- [English Version](README.md)
-- [中文版](README.zh.md)
+![banner](assets/banner.jpg)
 
 **Current Version:**
 0.1.5 (supporting openJiuwen 0.1.5)
