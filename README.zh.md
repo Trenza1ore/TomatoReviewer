@@ -1,9 +1,10 @@
 # TomatoReviewer
 
+[English Version](README.md) | [中文版](README.zh.md)
+
 **TomatoReviewer** 是一个智能的 Python 代码检视工具，它结合了静态分析和基于大语言模型（LLM）的推理，提供基于 PEP（Python 增强提案）的全面代码检视以及自动修复功能。
 
-- [English Version](README.md)
-- [中文版](README.zh.md)
+![banner](assets/banner.jpg)
 
 **当前版本：**
 0.1.5（支持 openJiuwen 0.1.5版本）
