@@ -1,4 +1,5 @@
-"""FixerAgent: Agent for generating fixed versions of code files.
+"""
+FixerAgent: Agent for generating fixed versions of code files.
 
 This agent takes review results and applies fixes to generate corrected versions
 of Python files based on PEP guidelines.

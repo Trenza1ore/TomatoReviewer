@@ -9,7 +9,7 @@ authors = [
 ]
 dependencies = [
     "filelock>=3.10.2",
-    "openjiuwen @ git+https://gitcode.com/openJiuwen/agent-core.git@062f11e2b398244a030b83343dcbe85ac2fbddf0",
+    "openjiuwen>=0.1.5",
 ]
 classifiers = [
     "Development Status :: 3 - Alpha",

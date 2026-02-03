@@ -1,4 +1,6 @@
-"""Utility functions for agent modules."""
+"""
+Utility functions for agent modules.
+"""
 
 import logging
 import os

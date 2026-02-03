@@ -1,4 +1,5 @@
-"""SearcherAgent: Agent for searching Python PEP documents and coding conventions.
+"""
+SearcherAgent: Agent for searching Python PEP documents and coding conventions.
 
 This agent uses PEPKnowledgeBase to research Python coding conventions and best practices.
 Uses LLM reasoning through ReActAgent framework.

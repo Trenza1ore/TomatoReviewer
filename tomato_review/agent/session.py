@@ -1,4 +1,5 @@
-"""Compatibility layer for AgentSession.
+"""
+Compatibility layer for AgentSession.
 
 This module provides a compatibility wrapper for AgentSession that adds
 the get_session_id() method for backward compatibility.

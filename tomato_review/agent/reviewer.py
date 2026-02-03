@@ -1,4 +1,5 @@
-"""ReviewerAgent: Agent for code review using pylint and PEP knowledge base.
+"""
+ReviewerAgent: Agent for code review using pylint and PEP knowledge base.
 
 This agent runs pylint on files, generates questions about errors, searches PEPs
 via SearcherAgent, and generates comprehensive markdown reports.

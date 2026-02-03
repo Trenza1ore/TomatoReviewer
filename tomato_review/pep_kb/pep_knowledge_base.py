@@ -6,7 +6,7 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from openjiuwen.core.common.logging import retrieval_logger
-from openjiuwen.core.retrieval import VLLMEmbedding
+from openjiuwen.core.retrieval import OpenAIEmbedding
 from openjiuwen.core.retrieval.common.config import (
     EmbeddingConfig,
     KnowledgeBaseConfig,
@@ -93,7 +93,7 @@ class PEPKnowledgeBase:
             api_key=embedding_api_key,
             base_url=embedding_base_url,
         )
-        self.embed_model = VLLMEmbedding(
+        self.embed_model = OpenAIEmbedding(
             config=embedding_config,
             max_retries=10,
             timeout=60,

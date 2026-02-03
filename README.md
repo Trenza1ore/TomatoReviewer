@@ -1,5 +1,7 @@
 # TomatoReviewer
-**Source Code**: https://gitcode.com/SushiNinja/TomatoReviewer
+**Source Code**: 
+- https://gitcode.com/SushiNinja/TomatoReviewer
+- https://github.com/Trenza1ore/TomatoReviewer
 
 **TomatoReviewer** is an intelligent Python code review tool that combines static analysis with LLM-powered reasoning to provide comprehensive code reviews and automatic fixes based on Python Enhancement Proposals (PEPs).
 
@@ -20,6 +22,7 @@ This project serves as a reference implementation, demonstrating how to build an
 - **Comprehensive Reports**: Generates detailed markdown reports with PEP references
 - **Safe Operation**: Creates backups before modifying files
 - **Code Testing**: Verifies fixes by running code to ensure functionality is preserved
+- **Smart Config Detection**: Automatically detects and uses project-specific pylint and mypy config files, with sensible defaults as fallback
 
 ## Built With
 
@@ -28,6 +31,7 @@ TomatoReviewer is built on top of:
 - **[openJiuwen](https://gitcode.com/openJiuwen/agent-core)**: Agent framework and knowledge base system. The PEP knowledge base feature leverages openJiuwen's knowledge base framework for vector storage, embeddings, and hybrid search capabilities.
 - **pylint**: Static code analysis
 - **ruff**: Fast Python linter and formatter
+- **mypy**: Static type checker
 
 ## How It Works
 
@@ -46,11 +50,15 @@ The PEP knowledge base is built using [openJiuwen's knowledge base framework](ht
 With `pip`:
 ```bash
 pip install git+https://gitcode.com/SushiNinja/TomatoReviewer.git@main
+# or
+pip install git+https://github.com/Trenza1ore/TomatoReviewer.git@main
 ```
 
 Same with `uv`:
 ```bash
 uv pip install git+https://gitcode.com/SushiNinja/TomatoReviewer.git@main
+# or
+uv pip install git+https://github.com/Trenza1ore/TomatoReviewer.git@main
 ```
 
 ## Usage
@@ -84,13 +92,17 @@ tomato-review *.py --config-file /path/to/config.yaml
 ### Command-line Options
 
 - `-h, --help`: Show help message and exit
-- `-m MAX_ITER, --max-iter MAX_ITER`: Maximum iterations of file fixing (default: 10)
+- `-m MAX_ITER, --max-iter MAX_ITER`: Maximum iterations of file review-fix cycles (default: 5)
+- `-s MAX_ITER, --searcher-max-iter MAX_ITER`: Maximum iterations of searcher agent (default: 5)
+- `-f MAX_ITER, --fixer-max-iter MAX_ITER`: Maximum iterations of fixer agent (default: 50)
 - `-b MINI_BATCH, --mini-batch MINI_BATCH`: Mini batch size for files to process at the same time (default: 20)
 - `--no-fix`: Only review files without applying fixes
 - `--build`: Builds Knowledge Base from scratch
 - `--config-file CONFIG_FILE`: Path to config file (tomato.yaml, .tomato.yaml, or pyproject.toml)
 
 ## Configuration
+
+### TomatoReviewer Configuration
 
 Create a `.tomato.yaml`, `tomato.yaml`, or add configuration to `pyproject.toml` in your project root. The following is an example configuration - adjust the values to match your setup:
 
@@ -113,6 +125,22 @@ tomato-review:
   verify_ssl: false
   ssl_cert: null
 ```
+
+### Pylint and mypy Configuration
+
+TomatoReviewer automatically detects and uses configuration files for pylint and mypy in the following order:
+
+**Pylint configuration:**
+1. `.pylintrc`, `pylintrc`, `.pylintrc.toml`, or `pylintrc.toml` in the current working directory
+2. `pyproject.toml` with `[tool.pylint]` section (auto-detected by pylint)
+3. Default `.pylintrc` bundled with TomatoReviewer (fallback)
+
+**Mypy configuration:**
+1. `.mypy.ini` or `mypy.ini` in the current working directory
+2. `pyproject.toml` with `[tool.mypy]` section (auto-detected by mypy)
+3. Default `.mypy.ini` bundled with TomatoReviewer (fallback)
+
+If no project-specific configuration is found, TomatoReviewer will use its built-in default configurations to ensure consistent code analysis.
 
 ## Output
 
