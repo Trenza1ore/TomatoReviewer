@@ -1,12 +1,12 @@
 # TomatoReviewer
-**Source Code**: 
-- https://gitcode.com/SushiNinja/TomatoReviewer
-- https://github.com/Trenza1ore/TomatoReviewer
 
 **TomatoReviewer** is an intelligent Python code review tool that combines static analysis with LLM-powered reasoning to provide comprehensive code reviews and automatic fixes based on Python Enhancement Proposals (PEPs).
 
 - [English Version](README.md)
 - [中文版](README.zh.md)
+
+**Current Version:**
+0.1.5 (supporting openJiuwen 0.1.5)
 
 ## Overview
 
@@ -44,6 +44,10 @@ TomatoReviewer employs three specialized agents:
 The tool follows an iterative review-fix cycle: it reviews files, applies fixes, reviews again, and repeats until issues are resolved or the maximum iteration limit is reached.
 
 The PEP knowledge base is built using [openJiuwen's knowledge base framework](https://gitcode.com/openJiuwen/agent-core), which provides vector storage, embedding models, and hybrid search capabilities for efficient retrieval of relevant PEP guidelines.
+
+## Source Code:
+- https://gitcode.com/SushiNinja/TomatoReviewer
+- https://github.com/Trenza1ore/TomatoReviewer
 
 ## Installation
 
