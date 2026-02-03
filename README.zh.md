@@ -1,12 +1,12 @@
 # TomatoReviewer
-**代码仓**：
-- https://gitcode.com/SushiNinja/TomatoReviewer
-- https://github.com/Trenza1ore/TomatoReviewer
 
 **TomatoReviewer** 是一个智能的 Python 代码检视工具，它结合了静态分析和基于大语言模型（LLM）的推理，提供基于 PEP（Python 增强提案）的全面代码检视以及自动修复功能。
 
 - [English Version](README.md)
 - [中文版](README.zh.md)
+
+**当前版本：**
+0.1.5（支持 openJiuwen 0.1.5版本）
 
 ## 概述
 
@@ -44,6 +44,11 @@ TomatoReviewer 采用三个专门的智能体：
 该工具遵循迭代的检视-修复循环：检视文件，应用修复，再次检视，重复此过程直到问题解决或达到最大迭代限制。
 
 PEP 知识库使用 [openJiuwen 知识库框架](https://gitcode.com/openJiuwen/agent-core) 构建，该框架提供向量存储、语义向量模型和混合搜索功能，用于高效检索相关的 PEP 指南。
+
+## 代码仓：
+- https://gitcode.com/SushiNinja/TomatoReviewer
+- https://github.com/Trenza1ore/TomatoReviewer
+
 
 ## 安装
 
