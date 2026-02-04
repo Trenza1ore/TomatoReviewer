@@ -15,7 +15,7 @@ from openjiuwen.core.single_agent.schema.agent_card import AgentCard
 from tqdm import tqdm
 
 from tomato_review.agent.session import AgentSession
-from tomato_review.agent.utils import configure_from_env, get_env_var
+from tomato_review.agent.utils import configure_from_env, extract_reasoning_content, get_env_var, get_input_params
 from tomato_review.pep_kb.pep_knowledge_base import PEPKnowledgeBase, create_pep_knowledge_base
 
 
@@ -46,6 +46,20 @@ class SearcherAgent(ReActAgent):
         """
         # Create default card if not provided
         if card is None:
+            schema = {
+                "type": "object",
+                "properties": {
+                    "question": {
+                        "type": "string",
+                        "description": "Question about Python coding conventions or best practices",
+                    },
+                    "code_snippet": {
+                        "type": "string",
+                        "description": "Optional code snippet related to the question",
+                    },
+                },
+                "required": ["question"],
+            }
             card = AgentCard(
                 name="searcher_agent",
                 description=(
@@ -53,20 +67,7 @@ class SearcherAgent(ReActAgent):
                     "Takes a query about Python coding conventions and an optional code snippet, "
                     "searches relevant PEPs, and returns a concise yet detailed summary."
                 ),
-                input_params={
-                    "type": "object",
-                    "properties": {
-                        "question": {
-                            "type": "string",
-                            "description": "Question about Python coding conventions or best practices",
-                        },
-                        "code_snippet": {
-                            "type": "string",
-                            "description": "Optional code snippet related to the question",
-                        },
-                    },
-                    "required": ["question"],
-                },
+                input_params=get_input_params(schema),
             )
 
         # Initialize parent
@@ -290,6 +291,7 @@ Be thorough but concise. Focus on actionable recommendations based on official P
 
         # Use parent's ReAct loop - LLM will reason and use tools
         result = await super().invoke({"query": user_query}, session=session)
+        result["output"], result["reasoning"] = extract_reasoning_content(result["output"])
 
         # Log LLM output (searcher role)
         if file_logger:
@@ -305,6 +307,7 @@ Be thorough but concise. Focus on actionable recommendations based on official P
             "result_type": result.get("result_type", "answer"),
             "query": query,
             "results_count": results_count,
+            "reasoning": result.get("reasoning", ""),
         }
 
 

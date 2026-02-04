@@ -13,6 +13,7 @@ import threading
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from openjiuwen import __version__ as openjiuwen_version
 from openjiuwen.core.common.exception.errors import BaseError
 from openjiuwen.core.common.exception.exception import JiuWenBaseException
 from openjiuwen.core.foundation.tool import tool
@@ -27,8 +28,10 @@ from tomato_review.agent.searcher import SearcherAgent
 from tomato_review.agent.session import AgentSession
 from tomato_review.agent.utils import (
     backup_file,
+    compare_version,
     configure_from_env,
     extract_reasoning_content,
+    get_input_params,
     get_mypy_config_path,
     get_pylint_config_path,
     normalize_filename,
@@ -74,6 +77,20 @@ class ReviewerAgent(ReActAgent):
         """
         # Create default card if not provided
         if card is None:
+            schema = {
+                "type": "object",
+                "properties": {
+                    "files": {
+                        "type": "array",
+                        "description": "List of file paths to review",
+                        "items": {
+                            "type": "string",
+                            "description": "Path to a Python file to review",
+                        },
+                    },
+                },
+                "required": ["files"],
+            }
             card = AgentCard(
                 name="reviewer_agent",
                 description=(
@@ -81,20 +98,7 @@ class ReviewerAgent(ReActAgent):
                     "Runs pylint on files, generates questions about errors, searches PEPs, "
                     "and generates comprehensive markdown reports."
                 ),
-                input_params={
-                    "type": "object",
-                    "properties": {
-                        "files": {
-                            "type": "array",
-                            "description": "List of file paths to review",
-                            "items": {
-                                "type": "string",
-                                "description": "Path to a Python file to review",
-                            },
-                        },
-                    },
-                    "required": ["files"],
-                },
+                input_params=get_input_params(schema),
             )
 
         # Initialize parent
@@ -714,11 +718,11 @@ Be thorough, accurate, and focus on Python best practices."""
                         pep_dict[pep_num] = url
 
             # Also look for explicit URL patterns in the summary
-            for pep_num in pep_dict.keys():
+            for pep_num, pep_content in pep_dict.items():
                 # Look for URL on same line or nearby mentioning this PEP
                 pattern = rf"PEP\s+{pep_num}[^\n]*\n[^\n]*URL:\s*(https?://[^\s]+)"
                 match = re.search(pattern, pep_summary)
-                if match and not pep_dict[pep_num]:
+                if match and not pep_content:
                     pep_dict[pep_num] = match.group(1)
 
             # Build list of PEP references
@@ -820,7 +824,12 @@ Be thorough, accurate, and focus on Python best practices."""
             session = AgentSession(session_id=f"review_{uuid.uuid4().hex[:8]}")
 
         # Get or create model context
-        context = await self._init_context(session)
+        # For version < 0.1.5, use context_engine.create_context
+        # For version >= 0.1.5, use _init_context
+        if compare_version(openjiuwen_version, "0.1.5"):
+            context = await self._init_context(session)
+        else:
+            context = await self.context_engine.create_context(session=session)
 
         # Add user message to context
         await context.add_messages(UserMessage(content=user_input))

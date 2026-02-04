@@ -1621,7 +1621,7 @@ wheels = [
 [[package]]
 name = "openjiuwen"
 version = "0.1.5"
-source = { git = "https://gitcode.com/openJiuwen/agent-core.git?rev=062f11e2b398244a030b83343dcbe85ac2fbddf0#062f11e2b398244a030b83343dcbe85ac2fbddf0" }
+source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aiofiles" },
     { name = "aiohttp" },
@@ -1645,6 +1645,10 @@ dependencies = [
     { name = "sqlalchemy" },
     { name = "tiktoken" },
     { name = "transformers" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/ce/98/e037aa5590f88090d858e67884970d3e21b6dac59157ab034754ab78ec08/openjiuwen-0.1.5.tar.gz", hash = "sha256:8eb42620e6afe7dd9703515611b07321a5dddf33e72df7e5dc32e8e180a186ef", size = 587804, upload-time = "2026-02-03T12:39:45.924Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/0c/af/9e1feed8ef1a8bdc72bec6f3b66102be6b5da19a75a7008cd80d6d16b1ed/openjiuwen-0.1.5-py3-none-any.whl", hash = "sha256:01b7777690d140a5dc2f1817fe374eb6c4b486fbf38dd6b50b5c6d8068376e5b", size = 832152, upload-time = "2026-02-03T12:39:44.329Z" },
 ]
 
 [[package]]
@@ -3101,7 +3105,7 @@ wheels = [
 
 [[package]]
 name = "tomato-review"
-version = "0.1.5"
+version = "0.1.5.1"
 source = { editable = "." }
 dependencies = [
     { name = "filelock" },
@@ -3111,7 +3115,7 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "filelock", specifier = ">=3.10.2" },
-    { name = "openjiuwen", git = "https://gitcode.com/openJiuwen/agent-core.git?rev=062f11e2b398244a030b83343dcbe85ac2fbddf0" },
+    { name = "openjiuwen", specifier = ">=0.1.4" },
 ]
 
 [[package]]
