@@ -6,7 +6,7 @@
 
 ![banner](assets/banner.jpg)
 
-**Current Version: `0.1.5.1 (openJiuwen>=0.1.4)`** 
+**Current Version: `0.1.5.2 (openJiuwen>=0.1.4)`** 
 
 ## Overview
 
@@ -131,6 +131,7 @@ tomato-review:
   embedding_model_name: "your-embedding-model"  # Update with your embedding model name
   embedding_api_key: "sk-********************"  # Update with your API key
   embedding_base_url: "http://your-embedding-server/v1/embeddings"  # Update with your embedding API URL
+  embedding_dimension: null  # Optional: specify embedding dimension (e.g., 768, 1536) when provided
   chunk_size: 512
   chunk_overlap: 128
   index_type: "hybrid"

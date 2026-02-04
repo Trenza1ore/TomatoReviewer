@@ -41,6 +41,7 @@ class PEPKnowledgeBase:
         embedding_model_name: str = "qwen3-embedding-8b",
         embedding_api_key: str = "sk-1234",
         embedding_base_url: str = "http://localhost:11450/v1/embeddings",
+        embedding_dimension: str = "",
         chunk_size: int = 512,
         chunk_overlap: int = 50,
         index_type: str = "hybrid",
@@ -56,6 +57,7 @@ class PEPKnowledgeBase:
             embedding_model_name: Embedding model name
             embedding_api_key: Embedding API key
             embedding_base_url: Embedding API base URL
+            embedding_dimension: Embedding dimension (if specified)
             chunk_size: Chunk size for text splitting
             chunk_overlap: Chunk overlap size
             index_type: Index type (vector, bm25, or hybrid)
@@ -93,10 +95,16 @@ class PEPKnowledgeBase:
             api_key=embedding_api_key,
             base_url=embedding_base_url,
         )
+
+        dimension = None
+        if isinstance(embedding_dimension, str) and embedding_dimension.strip().isdecimal():
+            dimension = int(embedding_dimension.strip())
+
         self.embed_model = OpenAIEmbedding(
             config=embedding_config,
             max_retries=10,
             timeout=60,
+            dimension=dimension,
         )
 
         # Create index manager
@@ -461,6 +469,7 @@ async def create_pep_knowledge_base(
     embedding_model_name: str = "qwen3-embedding-8b",
     embedding_api_key: str = "sk-1234",
     embedding_base_url: str = "http://localhost:11450/v1/embeddings",
+    embedding_dimension: str = "",
     **kwargs,
 ) -> PEPKnowledgeBase:
     """Create and initialize a PEP knowledge base.
@@ -473,6 +482,7 @@ async def create_pep_knowledge_base(
         embedding_model_name: Embedding model name
         embedding_api_key: Embedding API key
         embedding_base_url: Embedding API base URL
+        embedding_dimension: Embedding dimension (if specified)
         **kwargs: Additional arguments passed to PEPKnowledgeBase
 
     Returns:
@@ -492,7 +502,7 @@ async def create_pep_knowledge_base(
             censored_api_key = censored_api_key[:-4] + embedding_api_key[-4:]
     config_str = (
         f"  - {kb_id=}\n  - {milvus_uri=}\n  - {milvus_token=}\n  - {database_name=}\n  - {embedding_model_name=}\n  - "
-        + f"embedding_api_key={censored_api_key}\n  - {embedding_base_url=}\n  - {kwargs=}"
+        + f"embedding_api_key={censored_api_key}\n  - {embedding_base_url=}\n  - {embedding_dimension=}\n  - {kwargs=}"
     )
     if not HAS_INIT:
         print("Creating PEP Knowledge Base with settings:\n" + config_str)
@@ -505,5 +515,6 @@ async def create_pep_knowledge_base(
         embedding_model_name=embedding_model_name,
         embedding_api_key=embedding_api_key,
         embedding_base_url=embedding_base_url,
+        embedding_dimension=embedding_dimension,
         **kwargs,
     )

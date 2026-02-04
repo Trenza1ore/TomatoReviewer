@@ -6,7 +6,7 @@
 
 ![banner](assets/banner.jpg)
 
-**当前版本：`0.1.5.1 (openJiuwen>=0.1.4)`** 
+**当前版本：`0.1.5.2 (openJiuwen>=0.1.4)`** 
 
 ## 概述
 
@@ -131,6 +131,7 @@ tomato-review:
   embedding_model_name: "your-embedding-model"  # 更新为您的语义向量模型名称
   embedding_api_key: "sk-********************"  # 更新为您的 API 密钥
   embedding_base_url: "http://your-embedding-server/v1/embeddings"  # 更新为您的语义向量 API URL
+  embedding_dimension: null  # 可选：指定语义向量维度（例如：768、1536）
   chunk_size: 512
   chunk_overlap: 128
   index_type: "hybrid"

@@ -6,6 +6,7 @@ tomato-review:
   embedding_model_name: "your-embedding-model"  # Update with your embedding model name
   embedding_api_key: "sk-********************"  # Update with your API key
   embedding_base_url: "http://your-embedding-server/v1/embeddings"  # Update with your embedding API URL
+  embedding_dimension: null
   chunk_size: 512
   chunk_overlap: 128
   index_type: "hybrid"
