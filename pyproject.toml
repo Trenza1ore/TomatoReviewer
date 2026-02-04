@@ -1,6 +1,6 @@
 [project]
 name = "tomato-review"
-version = "0.1.5"
+version = "0.1.5.1"
 description = "Python code review agent using pylint and PEP knowledge base"
 readme = "TomatoReviewer.md"
 requires-python = ">=3.11"
@@ -9,7 +9,7 @@ authors = [
 ]
 dependencies = [
     "filelock>=3.10.2",
-    "openjiuwen>=0.1.5",
+    "openjiuwen>=0.1.4",
 ]
 classifiers = [
     "Development Status :: 3 - Alpha",

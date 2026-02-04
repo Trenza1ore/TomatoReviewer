@@ -6,8 +6,7 @@
 
 ![banner](assets/banner.jpg)
 
-**当前版本：**
-0.1.5（支持 openJiuwen 0.1.5版本）
+**当前版本：`0.1.5.1 (openJiuwen>=0.1.4)`** 
 
 ## 概述
 

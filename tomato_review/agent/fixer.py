@@ -23,6 +23,7 @@ from tomato_review.agent.session import AgentSession
 from tomato_review.agent.utils import (
     configure_from_env,
     extract_reasoning_content,
+    get_input_params,
     get_mypy_config_path,
     get_pylint_config_path,
     parse_mypy_output,
@@ -54,6 +55,39 @@ class FixerAgent(ReActAgent):
         """
         # Create default card if not provided
         if card is None:
+            schema = {
+                "type": "object",
+                "properties": {
+                    "file_path": {
+                        "type": "string",
+                        "description": "Path to the source file to fix",
+                    },
+                    "review_results": {
+                        "type": "object",
+                        "description": "Review results from ReviewerAgent containing proposed changes",
+                        "properties": {
+                            "proposed_changes": {
+                                "type": "array",
+                                "description": "List of proposed changes with fixes",
+                                "items": {
+                                    "type": "object",
+                                    "description": "A proposed change",
+                                    "properties": {
+                                        "line": {"type": "integer", "description": "Line number"},
+                                        "original_code": {"type": "string", "description": "Original code line"},
+                                        "fixed_code": {"type": "string", "description": "Fixed code line"},
+                                        "code": {"type": "string", "description": "Error code"},
+                                        "message": {"type": "string", "description": "Error message"},
+                                    },
+                                    "required": ["line"],
+                                },
+                            },
+                        },
+                        "required": ["proposed_changes"],
+                    },
+                },
+                "required": ["file_path", "review_results"],
+            }
             card = AgentCard(
                 name="fixer_agent",
                 description=(
@@ -61,39 +95,7 @@ class FixerAgent(ReActAgent):
                     "Takes review results and applies fixes to generate corrected "
                     "versions based on PEP guidelines."
                 ),
-                input_params={
-                    "type": "object",
-                    "properties": {
-                        "file_path": {
-                            "type": "string",
-                            "description": "Path to the source file to fix",
-                        },
-                        "review_results": {
-                            "type": "object",
-                            "description": "Review results from ReviewerAgent containing proposed changes",
-                            "properties": {
-                                "proposed_changes": {
-                                    "type": "array",
-                                    "description": "List of proposed changes with fixes",
-                                    "items": {
-                                        "type": "object",
-                                        "description": "A proposed change",
-                                        "properties": {
-                                            "line": {"type": "integer", "description": "Line number"},
-                                            "original_code": {"type": "string", "description": "Original code line"},
-                                            "fixed_code": {"type": "string", "description": "Fixed code line"},
-                                            "code": {"type": "string", "description": "Error code"},
-                                            "message": {"type": "string", "description": "Error message"},
-                                        },
-                                        "required": ["line"],
-                                    },
-                                },
-                            },
-                            "required": ["proposed_changes"],
-                        },
-                    },
-                    "required": ["file_path", "review_results"],
-                },
+                input_params=get_input_params(schema),
             )
 
         # Initialize parent
@@ -1160,8 +1162,10 @@ Important:
                 query = f"<orginal>\n{original_content}\n</orginal>\n<modified>\n{current_content}\n</modified>\n"
                 query += "Given the provided original content and modified content, summarize the changes made."
                 summary = await self._call_llm(self.config.prompt_template + [dict(role="user", content=query)])
-                llm_result["output"] = extract_reasoning_content(summary.content)[0]
+                llm_result["output"] = summary.content
                 llm_result["result_type"] = "fallback"
+
+            llm_result["output"], llm_result["reasoning"] = extract_reasoning_content(llm_result["output"])
 
             # Log LLM output (fixer role)
             if file_logger:
@@ -1209,6 +1213,7 @@ Important:
                 "remaining_errors": len(remaining_errors),
                 "message": f"File modified in place: {file_path}",
                 "llm_output": llm_result.get("output", ""),
+                "reasoning": llm_result.get("reasoning", ""),
             }
 
         except Exception as e:

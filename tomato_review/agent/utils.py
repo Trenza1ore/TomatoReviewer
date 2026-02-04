@@ -7,11 +7,17 @@ import os
 import re
 import shutil
 from pathlib import Path
-from typing import Dict, List, Literal, Optional
+from typing import Any, Dict, List, Literal, Optional
 
+from openjiuwen import __version__ as openjiuwen_version
 from openjiuwen.core.single_agent import ReActAgentConfig
 
 from tomato_review import DEBUG_MODE
+
+try:
+    from openjiuwen.core.common.schema.param import Param
+except ImportError:
+    Param = None
 
 
 def parse_pylint_output(output: str) -> List[Dict[str, str]]:
@@ -379,3 +385,166 @@ def get_mypy_config_path() -> Optional[str]:
 
     if MYPY_FALLBACK.exists():
         return str(MYPY_FALLBACK)
+
+
+def compare_version(version_str: str, target: str) -> bool:
+    """Compare version strings using zip for robust comparison.
+
+    Compares version strings element by element, stopping when one iterator
+    reaches the end. This handles cases where versions have different numbers
+    of parts (e.g., "0.1" vs "0.1.5").
+
+    Args:
+        version_str: Version string to compare (e.g., "0.1.5")
+        target: Target version string (e.g., "0.1.5")
+
+    Returns:
+        True if version_str >= target, False otherwise
+    """
+    try:
+
+        def version_parts(v: str) -> List[int]:
+            """Parse version string into list of integers."""
+            return [int(part) for part in v.split(".")]
+
+        v_parts = version_parts(version_str)
+        t_parts = version_parts(target)
+
+        # Compare common parts using zip (stops when one iterator ends)
+        for v_part, t_part in zip(v_parts, t_parts):
+            if v_part > t_part:
+                return True
+            if v_part < t_part:
+                return False
+            # If equal, continue to next part
+
+        # If all common parts are equal, longer version is considered greater
+        # (e.g., "0.1.5" >= "0.1" is True)
+        return len(v_parts) >= len(t_parts)
+
+    except (ValueError, AttributeError):
+        # If version parsing fails, default to using Param format (older behavior)
+        return False
+
+
+def _convert_schema_to_params(schema: Dict[str, Any]) -> List[Param]:
+    """Convert JSON schema dict to list of Param objects using Param shorthand methods.
+
+    Args:
+        schema: JSON schema dict with 'properties' and 'required' fields
+
+    Returns:
+        List of Param objects
+
+    Raises:
+        ImportError: If Param class is not available
+    """
+    if Param is None:
+        raise ImportError("Param class not available from openjiuwen.core.common.schema.param")
+
+    params = []
+    properties = schema.get("properties", {})
+    required = set(schema.get("required", []))
+
+    for param_name, param_schema in properties.items():
+        is_required = param_name in required
+
+        # Convert nested schema to Param recursively
+        param = _convert_single_param(param_name, param_schema, is_required)
+        params.append(param)
+
+    return params
+
+
+def _convert_single_param(name: str, schema: Dict[str, Any], required: bool) -> Param:
+    """Convert a single parameter schema to Param object using shorthand methods.
+
+    Args:
+        name: Parameter name
+        schema: Parameter schema dict
+        required: Whether the parameter is required
+
+    Returns:
+        Param object
+    """
+    if Param is None:
+        raise ImportError("Param class not available from openjiuwen.core.common.schema.param")
+
+    param_type = schema.get("type", "string")
+    description = schema.get("description", "")
+
+    # Get the Param shorthand method using getattr
+    # Map JSON schema types to Param methods
+    type_mapping = {
+        "string": "string",
+        "integer": "integer",
+        "number": "number",
+        "boolean": "boolean",
+        "array": "array",
+        "object": "object",
+    }
+
+    param_method_name = type_mapping.get(param_type, "string")
+    param_method = getattr(Param, param_method_name, None)
+
+    if param_method is None:
+        # Fallback to string if method doesn't exist
+        param_method = getattr(Param, "string")
+
+    # Build base kwargs
+    kwargs = {
+        "name": name,
+        "description": description,
+        "required": required,
+    }
+
+    # Handle array type - need to convert items
+    if param_type == "array" and "items" in schema:
+        items_schema = schema["items"]
+        if isinstance(items_schema, dict):
+            # Recursively convert items schema
+            # Items in arrays don't have 'name' in JSON schema, use default
+            # For objects, use a descriptive name based on the array param name or "item"
+            items_name = items_schema.get("name", "item")
+            # Items in arrays are typically not required (the array itself can be required)
+            items_required = items_schema.get("required", False)
+            if isinstance(items_required, list):
+                # If required is a list (for objects), check if items_name is in it
+                items_required = items_name in items_required
+            items_param = _convert_single_param(items_name, items_schema, items_required)
+            kwargs["items"] = items_param
+        else:
+            # If items is not a dict, treat as simple type string
+            items_type = str(items_schema)
+            items_method_name = type_mapping.get(items_type, "string")
+            items_method = getattr(Param, items_method_name, Param.string)
+            kwargs["items"] = items_method(name="item", description="", required=False)
+
+    # Handle object type - need to convert properties
+    elif param_type == "object" and "properties" in schema:
+        object_properties = schema.get("properties", {})
+        object_required = set(schema.get("required", []))
+        properties_list = []
+        for prop_name, prop_schema in object_properties.items():
+            prop_required = prop_name in object_required
+            prop_param = _convert_single_param(prop_name, prop_schema, prop_required)
+            properties_list.append(prop_param)
+        kwargs["properties"] = properties_list
+
+    # Create Param using the shorthand method
+    return param_method(**kwargs)
+
+
+def get_input_params(schema: Dict[str, Any]) -> Any:
+    """Get input_params based on openjiuwen version.
+
+    Args:
+        schema: JSON schema dict
+
+    Returns:
+        Either the schema dict (if version >= 0.1.5) or list[Param] (if version < 0.1.5)
+    """
+    if compare_version(openjiuwen_version, "0.1.5"):
+        return schema
+    else:
+        return _convert_schema_to_params(schema)
