@@ -546,5 +546,4 @@ def get_input_params(schema: Dict[str, Any]) -> Any:
     """
     if compare_version(openjiuwen_version, "0.1.5"):
         return schema
-    else:
-        return _convert_schema_to_params(schema)
+    return _convert_schema_to_params(schema)

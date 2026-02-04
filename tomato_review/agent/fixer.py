@@ -648,7 +648,7 @@ Be precise and careful - don't break working code. When in doubt, preserve the o
                     if next_line.startswith('"""') or next_line.startswith("'''"):
                         # Docstring already exists, skip
                         return fixed_lines
-                    elif next_line and not next_line.startswith("#"):
+                    if next_line and not next_line.startswith("#"):
                         # There's code, insert docstring with newline
                         docstring = f'{indent}    """TODO: Add docstring."""\n'
                         fixed_lines.insert(line_idx + 1, docstring)
@@ -669,7 +669,7 @@ Be precise and careful - don't break working code. When in doubt, preserve the o
                     next_line = fixed_lines[line_idx + 1].strip()
                     if next_line.startswith('"""') or next_line.startswith("'''"):
                         return fixed_lines
-                    elif next_line and not next_line.startswith("#"):
+                    if next_line and not next_line.startswith("#"):
                         docstring = f'{indent}    """TODO: Add class docstring."""\n'
                         fixed_lines.insert(line_idx + 1, docstring)
                 else:

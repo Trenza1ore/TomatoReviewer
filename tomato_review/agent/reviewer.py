@@ -718,11 +718,11 @@ Be thorough, accurate, and focus on Python best practices."""
                         pep_dict[pep_num] = url
 
             # Also look for explicit URL patterns in the summary
-            for pep_num in pep_dict.keys():
+            for pep_num, pep_content in pep_dict.items():
                 # Look for URL on same line or nearby mentioning this PEP
                 pattern = rf"PEP\s+{pep_num}[^\n]*\n[^\n]*URL:\s*(https?://[^\s]+)"
                 match = re.search(pattern, pep_summary)
-                if match and not pep_dict[pep_num]:
+                if match and not pep_content:
                     pep_dict[pep_num] = match.group(1)
 
             # Build list of PEP references
