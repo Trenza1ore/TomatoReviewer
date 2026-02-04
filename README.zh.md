@@ -49,6 +49,17 @@ PEP 知识库使用 [openJiuwen 知识库框架](https://gitcode.com/openJiuwen/
 - https://gitcode.com/SushiNinja/TomatoReviewer
 - https://github.com/Trenza1ore/TomatoReviewer
 
+## 示例展示
+
+查看使用 Qwen3-8B LLM 生成的 TomatoReviewer 报告和修复的实际示例：
+
+- **示例仓库**：[https://gitcode.com/SushiNinja/showcase-tomato-reviewer/tree/review-0.1.5.1](https://gitcode.com/SushiNinja/showcase-tomato-reviewer/tree/review-0.1.5.1)
+
+示例包括：
+- 包含 PEP 引用的详细检视报告
+- FixerAgent 自动应用的代码修复
+- 各种代码质量问题的示例及其解决方案
+- 显示改进效果的修复前后对比
 
 ## 安装
 

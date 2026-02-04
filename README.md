@@ -49,6 +49,18 @@ The PEP knowledge base is built using [openJiuwen's knowledge base framework](ht
 - https://gitcode.com/SushiNinja/TomatoReviewer
 - https://github.com/Trenza1ore/TomatoReviewer
 
+## Showcase Examples
+
+See real-world examples of TomatoReviewer's reports and fixes generated with Qwen3-8B LLM:
+
+- **Showcase Repository**: [https://gitcode.com/SushiNinja/showcase-tomato-reviewer/tree/review-0.1.5.1](https://gitcode.com/SushiNinja/showcase-tomato-reviewer/tree/review-0.1.5.1)
+
+The showcase includes:
+- Detailed review reports with PEP references
+- Automatic code fixes applied by the FixerAgent
+- Examples of various code quality issues and their resolutions
+- Before/after comparisons showing the improvements made
+
 ## Installation
 
 With `pip`:
