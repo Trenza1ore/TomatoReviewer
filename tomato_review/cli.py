@@ -26,6 +26,7 @@ try:
 except ImportError:
     from tqdm.auto import tqdm
 
+
 from openjiuwen import __version__ as jiuwen_version
 from openjiuwen.core.foundation.llm.model import Model
 from openjiuwen.core.foundation.llm.schema.config import ModelClientConfig, ModelRequestConfig
@@ -35,6 +36,18 @@ from tomato_review.agent import ReviewerAgent, SearcherAgent
 from tomato_review.agent.utils import setup_tomato_directories
 from tomato_review.config import get_kb_config, get_llm_config, load_config
 from tomato_review.kb_utils import check_knowledge_base, setup_knowledge_base_if_needed
+from tomato_review.pretty_printing import (
+    CBLU,
+    CEND,
+    CRED,
+    print_ascii_art,
+    print_blue,
+    print_cyan,
+    print_error,
+    print_green,
+    print_success,
+    print_warning,
+)
 
 # Filter out TqdmExperimentalWarning
 warnings.filterwarnings("ignore", category=TqdmExperimentalWarning, module="tqdm")
@@ -49,7 +62,7 @@ _cleanup_state = {
 
 def signal_handler(signum, frame):  # noqa: ARG001
     """Handle Ctrl+C and restore files."""
-    print("\n\n⚠️  Interrupted by user. Cleaning up...", file=sys.stderr)
+    print_warning("\n\nInterrupted by user. Cleaning up...")
 
     # Restore modified files from backup
     tomato_dirs = _cleanup_state.get("tomato_dirs")
@@ -67,11 +80,13 @@ def signal_handler(signum, frame):  # noqa: ARG001
                 backup_path = backup_dir / rel_path
                 if backup_path.exists():
                     shutil.copy2(backup_path, source_path)
-                    print(f"  ✓ Restored: {source_path}", file=sys.stderr)
+                    print_success(f"Restored: {source_path}")
+                else:
+                    print_warning(f"Backup not found: {backup_path}")
             except (OSError, shutil.Error) as e:
-                print(f"  ✗ Failed to restore {modified_file}: {e}", file=sys.stderr)
+                print_error(f"Failed to restore {modified_file}: {e}")
 
-    print("Cleanup complete.", file=sys.stderr)
+    print_cyan("Cleanup complete.")
     sys.exit(130)
 
 
@@ -110,10 +125,10 @@ def check_required_tools():
         missing_tools.append("mypy")
 
     if missing_tools:
-        print(f"\n❌ Error: Required tools are not installed: {', '.join(missing_tools)}", file=sys.stderr)
-        print("\nPlease install the missing tools:", file=sys.stderr)
+        print_error(f"\nRequired tools are not installed: {', '.join(missing_tools)}")
+        print_cyan("\nPlease install the missing tools:")
         for tool in missing_tools:
-            print(f"  pip install {tool}", file=sys.stderr)
+            print_cyan(f"  pip install {tool}")
         sys.exit(1)
 
 
@@ -150,7 +165,7 @@ def expand_file_patterns(patterns: List[str]) -> List[str]:
                 matches = []
 
         if not matches:
-            print(f"Warning: No files found matching pattern: {pattern}", file=sys.stderr)
+            print_warning(f"No files found matching pattern: {pattern}")
             continue
 
         # Filter to only Python files
@@ -159,7 +174,7 @@ def expand_file_patterns(patterns: List[str]) -> List[str]:
             if path.is_file() and path.suffix == ".py":
                 files.append(str(path.resolve()))
             elif path.is_file():
-                print(f"Warning: Skipping non-Python file: {match}", file=sys.stderr)
+                print_warning(f"Skipping non-Python file: {match}")
 
     # Remove duplicates while preserving order
     seen = set()
@@ -174,8 +189,9 @@ def expand_file_patterns(patterns: List[str]) -> List[str]:
 
 async def main():
     """Main CLI entry point."""
-    print(f"Tomato Reviewer version: {__version__}")
-    print(f"Using openJiuwen version: {jiuwen_version}")
+    print_ascii_art()
+    print_cyan(f"Tomato Reviewer version: {__version__}")
+    print_cyan(f"Using openJiuwen version: {jiuwen_version}")
 
     # Set up signal handler for cleanup
     signal.signal(signal.SIGINT, signal_handler)
@@ -259,8 +275,8 @@ Examples:
     # Load configuration
     config = load_config()
     if not config:
-        print("Warning: No configuration file found (tomato.yaml, .tomato.yaml, or pyproject.toml)", file=sys.stderr)
-        print("Some features may not work.", file=sys.stderr)
+        print_warning("No configuration file found (tomato.yaml, .tomato.yaml, or pyproject.toml)")
+        print_warning("Some features may not work.")
 
     # Get KB and LLM configs
     kb_config = get_kb_config(config)
@@ -297,7 +313,7 @@ Examples:
             os.environ[env_var_name] = str(value) if not isinstance(value, bool) else str(value).lower()
 
     # Check and setup knowledge base
-    print("Checking knowledge base...")
+    print_blue("Checking knowledge base...")
     is_valid, error, should_continue = check_knowledge_base(kb_config)
     build_kb = args.build
 
@@ -305,50 +321,50 @@ Examples:
         if build_kb or should_continue:
             # KB just needs to be created - offer to create it
             if build_kb:
-                print("Knowledge base will be rebuilt.")
+                print_cyan("Knowledge base will be rebuilt.")
                 response = "y"
             else:
-                print(f"Knowledge base not found: {error}")
+                print_warning(f"Knowledge base not found: {error}")
                 response = ""
             while response not in {"", "y"}:
-                response = input("\rCreate knowledge base now? (y/n, default=y): ").strip().lower()
+                response = input(f"\r{CRED}Create knowledge base now? (y/n, default=y): {CEND}").strip().lower()
                 if response == "n":
-                    print("Cannot continue without knowledge base.", file=sys.stderr)
+                    print_error("Cannot continue without knowledge base.")
                     sys.exit(1)
             try:
                 await setup_knowledge_base_if_needed(kb_config)
             except Exception as e:
-                print("Error setting up knowledge base", file=sys.stderr)
+                print_error("Error setting up knowledge base")
                 raise e
         else:
             # Configuration or connection issue - show error and help, then exit
-            print(f"\n❌ Error: {error}", file=sys.stderr)
-            print("\nPlease check your configuration:", file=sys.stderr)
-            print("  1. Ensure Milvus is running and accessible", file=sys.stderr)
-            print("  2. Verify your configuration file (tomato.yaml, .tomato.yaml, or pyproject.toml)", file=sys.stderr)
-            print("  3. Check that all required fields are set:", file=sys.stderr)
-            print("     - kb_id", file=sys.stderr)
-            print("     - milvus_uri", file=sys.stderr)
-            print("     - database_name", file=sys.stderr)
-            print("\nExample configuration in tomato.yaml:", file=sys.stderr)
-            print("  tomato-review:", file=sys.stderr)
-            print('    kb_id: "edinburgh"', file=sys.stderr)
-            print('    milvus_uri: "http://localhost:19530"', file=sys.stderr)
-            print('    database_name: "pep_kb"', file=sys.stderr)
+            print_error(f"\n{error}")
+            print_cyan("\nPlease check your configuration:")
+            print_cyan("  1. Ensure Milvus is running and accessible")
+            print_cyan("  2. Verify your configuration file (tomato.yaml, .tomato.yaml, or pyproject.toml)")
+            print_cyan("  3. Check that all required fields are set:")
+            print_cyan("     - kb_id")
+            print_cyan("     - milvus_uri")
+            print_cyan("     - database_name")
+            print_cyan("\nExample configuration in tomato.yaml:")
+            print_cyan("  tomato-review:")
+            print_cyan('    kb_id: "edinburgh"')
+            print_cyan('    milvus_uri: "http://localhost:19530"')
+            print_cyan('    database_name: "pep_kb"')
             sys.exit(1)
     else:
-        print("✓ Knowledge base is accessible")
+        print_success("Knowledge base is accessible")
         # Still update changed PEPs
         try:
             from tomato_review.pep_kb.pep_knowledge_base import create_pep_knowledge_base
 
             pep_kb = await create_pep_knowledge_base(**kb_config)
-            print("Getting latest PEPs...")
+            print_blue("Getting latest PEPs...")
             stats = await pep_kb.update_changed_peps(filter_status=True)
             if stats["updated"] or stats["added"]:
-                print(f"✓ Updated: {len(stats['updated'])} PEPs, Added: {len(stats['added'])} PEPs")
+                print_success(f"Updated: {len(stats['updated'])} PEPs, Added: {len(stats['added'])} PEPs")
         except Exception as e:
-            print(f"Warning: Could not update PEPs: {e}", file=sys.stderr)
+            print_warning(f"Could not update PEPs: {e}")
 
     print()
 
@@ -356,20 +372,20 @@ Examples:
     files = expand_file_patterns(args.files)
 
     if not files:
-        print("Error: No Python files found to review.", file=sys.stderr)
+        print_error("No Python files found to review.")
         sys.exit(1)
 
-    print(f"Found {len(files)} file(s) to review:")
+    print_blue(f"Found {len(files)} file(s) to review:")
     cwd = Path.cwd()
     for f in files:
         file_path = Path(f)
         try:
             # Try to show relative path
             rel_path = file_path.relative_to(cwd)
-            print(f"  - {rel_path}")
+            print_cyan(f"  - {rel_path}")
         except ValueError:
             # If not relative to cwd, show absolute path
-            print(f"  - {file_path}")
+            print_cyan(f"  - {file_path}")
     print()
 
     # Set up tomato directories
@@ -378,17 +394,17 @@ Examples:
     # Validate configuration before initializing agents
     missing_llm_config = [k for k, v in llm_config.items() if v == ""]
     if missing_llm_config:
-        print(f"\n❌ Error: Missing required LLM configuration: {', '.join(missing_llm_config)}", file=sys.stderr)
-        print("\nPlease check your configuration file (tomato.yaml, .tomato.yaml, or pyproject.toml)", file=sys.stderr)
-        print("Required LLM settings:", file=sys.stderr)
-        print("  - api_base", file=sys.stderr)
-        print("  - api_key", file=sys.stderr)
-        print("  - model_name", file=sys.stderr)
-        print("  - model_provider", file=sys.stderr)
+        print_error(f"\nMissing required LLM configuration: {', '.join(missing_llm_config)}")
+        print_cyan("\nPlease check your configuration file (tomato.yaml, .tomato.yaml, or pyproject.toml)")
+        print_cyan("Required LLM settings:")
+        print_cyan("  - api_base")
+        print_cyan("  - api_key")
+        print_cyan("  - model_name")
+        print_cyan("  - model_provider")
         sys.exit(1)
 
     # Verify LLM connectivity before initializing agents
-    print("Verifying LLM connectivity...")
+    print_blue("Verifying LLM connectivity...")
     try:
         # Parse verify_ssl
         verify_ssl_value = llm_config.get("verify_ssl")
@@ -429,29 +445,29 @@ Examples:
         if not test_response or not test_response.content:
             raise ValueError("LLM returned empty response")
 
-        print("✓ LLM connectivity verified")
+        print_success("LLM connectivity verified")
     except Exception as e:
         error_msg = str(e).lower()
-        print(f"\n❌ LLM connectivity verification failed: {e}", file=sys.stderr)
+        print_error(f"\nLLM connectivity verification failed: {e}")
 
         # Provide helpful messages for common errors
         if "api" in error_msg or "key" in error_msg or "auth" in error_msg or "unauthorized" in error_msg:
-            print("\nThis appears to be an API authentication error.", file=sys.stderr)
-            print("Please check:", file=sys.stderr)
-            print("  1. Your API key is correct and valid", file=sys.stderr)
-            print("  2. Your API base URL is correct", file=sys.stderr)
-            print("  3. Your API key has the necessary permissions", file=sys.stderr)
+            print_cyan("\nThis appears to be an API authentication error.")
+            print_cyan("Please check:")
+            print_cyan("  1. Your API key is correct and valid")
+            print_cyan("  2. Your API base URL is correct")
+            print_cyan("  3. Your API key has the necessary permissions")
         elif "connection" in error_msg or "timeout" in error_msg or "network" in error_msg:
-            print("\nThis appears to be a connection error.", file=sys.stderr)
-            print("Please check:", file=sys.stderr)
-            print("  1. Your network connection", file=sys.stderr)
-            print("  2. The API base URL is reachable", file=sys.stderr)
-            print("  3. There are no firewall restrictions", file=sys.stderr)
+            print_cyan("\nThis appears to be a connection error.")
+            print_cyan("Please check:")
+            print_cyan("  1. Your network connection")
+            print_cyan("  2. The API base URL is reachable")
+            print_cyan("  3. There are no firewall restrictions")
         elif "model" in error_msg or "not found" in error_msg:
-            print("\nThis appears to be a model configuration error.", file=sys.stderr)
-            print("Please check:", file=sys.stderr)
-            print("  1. Your model name is correct", file=sys.stderr)
-            print("  2. The model is available in your API provider", file=sys.stderr)
+            print_cyan("\nThis appears to be a model configuration error.")
+            print_cyan("Please check:")
+            print_cyan("  1. Your model name is correct")
+            print_cyan("  2. The model is available in your API provider")
 
         raise e
 
@@ -461,36 +477,36 @@ Examples:
     os.environ["REACT_MAX_ITER_FIX"] = str(args.fixer_max_iter)
     with tqdm(total=len(files), desc="Reviewing files", unit="file") as pbar:
         try:
-            print("\nInitializing agents...")
+            print_blue("\nInitializing agents...")
             searcher = SearcherAgent()
             reviewer = ReviewerAgent(
                 searcher_agent=searcher,
                 generate_fixed_files=not args.no_fix,
                 pbar=pbar,
             )
-            print("✓ Agents initialized\n")
+            print_success("Agents initialized\n")
         except Exception as e:
             error_msg = str(e).lower()
-            print(f"\n❌ Error initializing agents: {e}", file=sys.stderr)
+            print_error(f"\nError initializing agents: {e}")
 
             # Provide helpful messages for common errors
             if "api" in error_msg or "key" in error_msg or "auth" in error_msg or "unauthorized" in error_msg:
-                print("\nThis appears to be an API authentication error.", file=sys.stderr)
-                print("Please check:", file=sys.stderr)
-                print("  1. Your API key is correct and valid", file=sys.stderr)
-                print("  2. Your API base URL is correct", file=sys.stderr)
-                print("  3. Your API key has the necessary permissions", file=sys.stderr)
+                print_cyan("\nThis appears to be an API authentication error.")
+                print_cyan("Please check:")
+                print_cyan("  1. Your API key is correct and valid")
+                print_cyan("  2. Your API base URL is correct")
+                print_cyan("  3. Your API key has the necessary permissions")
             elif "connection" in error_msg or "timeout" in error_msg or "network" in error_msg:
-                print("\nThis appears to be a connection error.", file=sys.stderr)
-                print("Please check:", file=sys.stderr)
-                print("  1. Your network connection", file=sys.stderr)
-                print("  2. The API base URL is reachable", file=sys.stderr)
-                print("  3. There are no firewall restrictions", file=sys.stderr)
+                print_cyan("\nThis appears to be a connection error.")
+                print_cyan("Please check:")
+                print_cyan("  1. Your network connection")
+                print_cyan("  2. The API base URL is reachable")
+                print_cyan("  3. There are no firewall restrictions")
             elif "embedding" in error_msg or "milvus" in error_msg:
-                print("\nThis appears to be a knowledge base or embedding error.", file=sys.stderr)
-                print("Please check:", file=sys.stderr)
-                print("  1. Your embedding API configuration", file=sys.stderr)
-                print("  2. Milvus connection settings", file=sys.stderr)
+                print_cyan("\nThis appears to be a knowledge base or embedding error.")
+                print_cyan("Please check:")
+                print_cyan("  1. Your embedding API configuration")
+                print_cyan("  2. Milvus connection settings")
 
             import traceback
 
@@ -499,8 +515,8 @@ Examples:
 
         # Run review with progress bar
         try:
-            print(f"Starting review process (batch size: {args.mini_batch})...")
-            print("=" * 80)
+            print_blue(f"Starting review process (batch size: {args.mini_batch})...")
+            print(f"{CBLU}{'=' * 80}{CEND}")
 
             for i in range(0, len(files), args.mini_batch):
                 j = i + args.mini_batch
@@ -509,7 +525,7 @@ Examples:
 
                 # Check for errors in result
                 if not result:
-                    print("\n❌ Error: Review returned no results", file=sys.stderr)
+                    print_error("\nReview returned no results")
                     sys.exit(1)
 
                 # Check if any files failed to process
@@ -524,24 +540,24 @@ Examples:
                             failed_files.append(report.get("file_path", "Unknown"))
 
                     if failed_files:
-                        print(f"\n⚠️  Warning: {len(failed_files)} file(s) had errors during review:", file=sys.stderr)
+                        print_warning(f"\n{len(failed_files)} file(s) had errors during review:")
                         for f in failed_files:
-                            print(f"  - {f}", file=sys.stderr)
+                            print_warning(f"  - {f}")
 
                 # Check if review actually processed files
                 files_reviewed = result.get("files_reviewed", 0)
                 if files_reviewed == 0 and files:
-                    print("\n❌ Error: No files were successfully reviewed", file=sys.stderr)
-                    print("This may indicate:", file=sys.stderr)
-                    print("  1. API authentication failure (check your API key)", file=sys.stderr)
-                    print("  2. Network connectivity issues", file=sys.stderr)
-                    print("  3. Configuration errors", file=sys.stderr)
-                    print("\nCheck the logs in tomato/logs/ for more details.", file=sys.stderr)
+                    print_error("\nNo files were successfully reviewed")
+                    print_cyan("This may indicate:")
+                    print_cyan("  1. API authentication failure (check your API key)")
+                    print_cyan("  2. Network connectivity issues")
+                    print_cyan("  3. Configuration errors")
+                    print_cyan("\nCheck the logs in tomato/logs/ for more details.")
                     sys.exit(1)
 
-            print("\n" + "=" * 80)
-            print("Review completed!")
-            print("=" * 80)
+            print(f"\n{CBLU}{'=' * 80}{CEND}")
+            print_green("Review completed!")
+            print(f"{CBLU}{'=' * 80}{CEND}")
             print()
 
             # Track modified files for cleanup
@@ -553,17 +569,17 @@ Examples:
 
             # Print summary
             if result.get("report_files"):
-                print("Review reports saved to: tomato/reviews/")
-                print(f"  ({len(result['report_files'])} report(s) generated)")
+                print_cyan("Review reports saved to: tomato/reviews/")
+                print_cyan(f"  ({len(result['report_files'])} report(s) generated)")
 
             if result.get("fixed_files") and not args.no_fix:
-                print(f"\nModified {len(result['fixed_files'])} file(s) in place")
-                print("Original files backed up to: tomato/backup/")
+                print_green(f"\nModified {len(result['fixed_files'])} file(s) in place")
+                print_cyan("Original files backed up to: tomato/backup/")
 
             if result.get("files_reviewed"):
-                print(f"\nTotal files reviewed: {result['files_reviewed']}")
+                print_cyan(f"\nTotal files reviewed: {result['files_reviewed']}")
 
-            print("\nLogs saved to: tomato/logs/")
+            print_cyan("\nLogs saved to: tomato/logs/")
             print()
 
             # Print combined report
@@ -576,7 +592,7 @@ Examples:
 
         except Exception as e:
             error_msg = str(e).lower()
-            print(f"\n❌ Error during review: {e}", file=sys.stderr)
+            print_error(f"\nError during review: {e}")
 
             # Provide helpful messages for common errors
             if (
@@ -587,27 +603,27 @@ Examples:
                 or "401" in error_msg
                 or "403" in error_msg
             ):
-                print("\nThis appears to be an API authentication error.", file=sys.stderr)
-                print("Please check:", file=sys.stderr)
-                print("  1. Your API key is correct and valid", file=sys.stderr)
-                print("  2. Your API base URL is correct", file=sys.stderr)
-                print("  3. Your API key has the necessary permissions", file=sys.stderr)
-                print("  4. Your embedding API key (if different) is also valid", file=sys.stderr)
+                print_cyan("\nThis appears to be an API authentication error.")
+                print_cyan("Please check:")
+                print_cyan("  1. Your API key is correct and valid")
+                print_cyan("  2. Your API base URL is correct")
+                print_cyan("  3. Your API key has the necessary permissions")
+                print_cyan("  4. Your embedding API key (if different) is also valid")
             elif (
                 "connection" in error_msg or "timeout" in error_msg or "network" in error_msg or "refused" in error_msg
             ):
-                print("\nThis appears to be a connection error.", file=sys.stderr)
-                print("Please check:", file=sys.stderr)
-                print("  1. Your network connection", file=sys.stderr)
-                print("  2. The API base URL is reachable", file=sys.stderr)
-                print("  3. There are no firewall restrictions", file=sys.stderr)
+                print_cyan("\nThis appears to be a connection error.")
+                print_cyan("Please check:")
+                print_cyan("  1. Your network connection")
+                print_cyan("  2. The API base URL is reachable")
+                print_cyan("  3. There are no firewall restrictions")
             elif "embedding" in error_msg or "milvus" in error_msg:
-                print("\nThis appears to be a knowledge base or embedding error.", file=sys.stderr)
-                print("Please check:", file=sys.stderr)
-                print("  1. Your embedding API configuration", file=sys.stderr)
-                print("  2. Milvus connection settings", file=sys.stderr)
+                print_cyan("\nThis appears to be a knowledge base or embedding error.")
+                print_cyan("Please check:")
+                print_cyan("  1. Your embedding API configuration")
+                print_cyan("  2. Milvus connection settings")
 
-            print("\nCheck the logs in tomato/logs/ for more details.", file=sys.stderr)
+            print_cyan("\nCheck the logs in tomato/logs/ for more details.")
             import traceback
 
             traceback.print_exc()

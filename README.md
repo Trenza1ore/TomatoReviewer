@@ -6,7 +6,7 @@
 
 ![banner](assets/banner.jpg)
 
-**Current Version: `0.1.5.3 (openJiuwen>=0.1.4)`** 
+**Current Version: `0.1.5.4 (openJiuwen>=0.1.4)`** 
 
 ## Overview
 
