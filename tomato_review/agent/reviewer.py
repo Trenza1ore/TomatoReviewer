@@ -15,12 +15,18 @@ from typing import Any, Dict, List, Optional
 
 from openjiuwen import __version__ as openjiuwen_version
 from openjiuwen.core.common.exception.errors import BaseError
-from openjiuwen.core.common.exception.exception import JiuWenBaseException
 from openjiuwen.core.foundation.tool import tool
 from openjiuwen.core.runner import Runner
 from openjiuwen.core.single_agent.agents.react_agent import ReActAgent, ReActAgentConfig
 from openjiuwen.core.single_agent.schema.agent_card import AgentCard
 from tqdm import tqdm
+
+try:
+    from openjiuwen.core.common.exception.exception import JiuWenBaseException
+
+    JIUWEN_EXCEPTION_GROUP = (BaseError, JiuWenBaseException)
+except ImportError:
+    JIUWEN_EXCEPTION_GROUP = (BaseError,)
 
 from tomato_review import DEBUG_MODE
 from tomato_review.agent.fixer import FixerAgent
@@ -1039,7 +1045,7 @@ Format your response as a detailed markdown report."""
                     "pylint_result": pylint_result,
                     "mypy_result": mypy_result,
                 }
-            except (JiuWenBaseException, BaseError):
+            except JIUWEN_EXCEPTION_GROUP:
                 raise
             except Exception as e:
                 self._file_loggers[file_path].error("LLM review failed for %s: %s", file_path, e)
@@ -1047,7 +1053,7 @@ Format your response as a detailed markdown report."""
                     raise e
                 # Fallback to rule-based review
                 return await self._review_file_rule_based(file_path)
-        except (JiuWenBaseException, BaseError):
+        except JIUWEN_EXCEPTION_GROUP:
             raise
         except Exception as e:
             if file_path in self._file_loggers:
@@ -1171,7 +1177,7 @@ Format your response as a detailed markdown report."""
                 # Track if search failed
                 if pep_summary and ("Error:" in pep_summary or "error" in pep_summary.lower()):
                     pep_search_errors.append(question)
-            except (JiuWenBaseException, BaseError):
+            except JIUWEN_EXCEPTION_GROUP:
                 raise
             except Exception as e:
                 # PEP search failed - log and continue, but mark as error
