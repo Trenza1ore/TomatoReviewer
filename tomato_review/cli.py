@@ -172,8 +172,23 @@ def expand_file_patterns(patterns: List[str]) -> List[str]:
     return unique_files
 
 
+def print_ascii_art():
+    """Print the Tomato ASCII art."""
+    tomato_art = """
+  ,d                                               ,d                
+  88                                               88                
+MM88MMM ,adPPYba,  88,dPYba,,adPYba,  ,adPPYYba, MM88MMM ,adPPYba,   
+  88   a8"     "8a 88P'   "88"    "8a ""     `Y8   88   a8"     "8a  
+  88   8b       d8 88      88      88 ,adPPPPP88   88   8b       d8  
+  88,  "8a,   ,a8" 88      88      88 88,    ,88   88,  "8a,   ,a8"  
+  "Y888 `"YbbdP"'  88      88      88 `"8bbdP"Y8   "Y888 `"YbbdP"'       
+    """
+    print(tomato_art)
+
+
 async def main():
     """Main CLI entry point."""
+    print_ascii_art()
     print(f"Tomato Reviewer version: {__version__}")
     print(f"Using openJiuwen version: {jiuwen_version}")
 
