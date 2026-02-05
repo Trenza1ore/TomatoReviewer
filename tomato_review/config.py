@@ -1,4 +1,6 @@
-"""Configuration loading utilities for tomato-review."""
+"""
+Configuration loading utilities for tomato-review.
+"""
 
 import os
 import tomllib

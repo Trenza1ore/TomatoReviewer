@@ -1,4 +1,6 @@
-"""Knowledge base validation and setup utilities."""
+"""
+Knowledge base validation and setup utilities.
+"""
 
 from typing import Optional
 
