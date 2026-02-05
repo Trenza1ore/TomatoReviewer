@@ -4,10 +4,6 @@ Fancy printing cuz we fancy people :-)
 
 import sys
 
-from rich.console import Console
-from rich.panel import Panel
-from rich.text import Text
-
 # ANSI Colour Codes
 CREDBG = "\033[41m"
 CRED = "\033[91m"
@@ -18,8 +14,6 @@ CYEL = "\033[41m"
 CEND = "\033[0m"
 
 # ascii art
-console = Console()
-
 TOMATO_ART = r"""
   ,d                                               ,d              
   88                                               88              
@@ -30,11 +24,25 @@ MM88MMM ,adPPYba,  88,dPYba,,adPYba,  ,adPPYYba, MM88MMM ,adPPYba,
   "Y888 `"YbbdP"'  88      88      88 `"8bbdP"Y8   "Y888 `"YbbdP"' 
 """.strip("\n")
 
+# Try to use rich if available/working; otherwise fall back to ANSI/text.
+try:
+    from rich.console import Console
+    from rich.panel import Panel
+    from rich.text import Text
+
+    console = Console()
+    RICH_AVAILABLE = True
+except Exception:
+    RICH_AVAILABLE = False
+
 
 def apply_vertical_gradient(
     text_raw: str, start_rgb: tuple[int, int, int] = (255, 0, 0), end_rgb: tuple[int, int, int] = (255, 165, 0)
-) -> Text:
-    """Apply vertical colour gradient to our beloved tomato"""
+):
+    """Apply vertical colour gradient to our beloved tomato (rich), else fall back to plain text."""
+    if not RICH_AVAILABLE:
+        return text_raw + "\n"
+
     lines = text_raw.splitlines()
     gradient_text = Text()
 
@@ -49,9 +57,19 @@ def apply_vertical_gradient(
 
 
 def print_ascii_art():
-    """Bring out our wonderful ASCII art!"""
-    styled_tomato = apply_vertical_gradient(TOMATO_ART)
-    console.print(Panel(styled_tomato, expand=False, border_style="bright_red", title="[bold red] ⋆｡‧˚ʚ🍅ɞ˚‧｡⋆ [/]"))
+    """Bring out our wonderful ASCII art! (rich if possible; otherwise ANSI/plain)"""
+    if RICH_AVAILABLE:
+        try:
+            styled_tomato = apply_vertical_gradient(TOMATO_ART)
+            console.print(
+                Panel(styled_tomato, expand=False, border_style="bright_red", title="[bold red] ⋆｡‧˚ʚ🍅ɞ˚‧｡⋆ [/]")
+            )
+            return
+        except Exception:
+            pass
+
+    # Fallback: simple ANSI-colored ASCII art (or plain if ANSI is stripped)
+    print(f"{CRED}{TOMATO_ART}{CEND}")
 
 
 def print_success(message: str, end: str = "\n"):
