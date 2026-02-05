@@ -29,9 +29,9 @@ This project serves as a reference implementation, demonstrating how to build an
 TomatoReviewer is built on top of:
 
 - **[openJiuwen](https://gitcode.com/openJiuwen/agent-core)**: Agent framework and knowledge base system. The PEP knowledge base feature leverages openJiuwen's knowledge base framework for vector storage, embeddings, and hybrid search capabilities.
-- **pylint**: Static code analysis
-- **ruff**: Fast Python linter and formatter
-- **mypy**: Static type checker
+- **[pylint](https://pylint.readthedocs.io/en/stable/)**: Static code analysis
+- **[ruff](https://docs.astral.sh/ruff/)**: A fast Python linter and formatter
+- **[mypy](https://www.mypy-lang.org)**: Static type checker
 
 ## How It Works
 

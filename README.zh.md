@@ -29,9 +29,9 @@ TomatoReviewer 使用由大语言模型（LLM）驱动的多智能体架构来�
 TomatoReviewer 基于以下技术构建：
 
 - **[openJiuwen](https://gitcode.com/openJiuwen/agent-core)**：智能体框架和知识库系统。PEP 知识库功能利用 openJiuwen 的知识库框架提供向量存储、语义向量模型和混合搜索功能。
-- **pylint**：静态代码分析
-- **ruff**：快速的 Python 代码检查器和格式化工具
-- **mypy**：静态类型检查器
+- **[pylint](https://pylint.readthedocs.io/en/stable/)**：静态代码分析
+- **[ruff](https://docs.astral.sh/ruff/)**：Python代码检查与格式化工具
+- **[mypy](https://www.mypy-lang.org)**：静态类型检查
 
 ## 工作原理
 
