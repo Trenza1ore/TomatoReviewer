@@ -26,6 +26,10 @@ try:
 except ImportError:
     from tqdm.auto import tqdm
 
+from rich.console import Console
+from rich.panel import Panel
+from rich.text import Text
+
 from openjiuwen import __version__ as jiuwen_version
 from openjiuwen.core.foundation.llm.model import Model
 from openjiuwen.core.foundation.llm.schema.config import ModelClientConfig, ModelRequestConfig
@@ -171,10 +175,10 @@ def expand_file_patterns(patterns: List[str]) -> List[str]:
 
     return unique_files
 
+# ascii art
+console = Console()
 
-def print_ascii_art():
-    """Print the Tomato ASCII art."""
-    tomato_art = """
+tomato_art = r"""
   ,d                                               ,d                
   88                                               88                
 MM88MMM ,adPPYba,  88,dPYba,,adPYba,  ,adPPYYba, MM88MMM ,adPPYba,   
@@ -182,8 +186,36 @@ MM88MMM ,adPPYba,  88,dPYba,,adPYba,  ,adPPYYba, MM88MMM ,adPPYba,
   88   8b       d8 88      88      88 ,adPPPPP88   88   8b       d8  
   88,  "8a,   ,a8" 88      88      88 88,    ,88   88,  "8a,   ,a8"  
   "Y888 `"YbbdP"'  88      88      88 `"8bbdP"Y8   "Y888 `"YbbdP"'       
-    """
-    print(tomato_art)
+""".strip("\n")
+
+
+def apply_vertical_gradient(text_raw, start_rgb=(255, 0, 0), end_rgb=(255, 165, 0)):
+    lines = text_raw.splitlines()
+    gradient_text = Text()
+    
+    for i, line in enumerate(lines):
+        ratio = i / max(1, len(lines) - 1)
+        r = int(start_rgb[0] + (end_rgb[0] - start_rgb[0]) * ratio)
+        g = int(start_rgb[1] + (end_rgb[1] - start_rgb[1]) * ratio)
+        b = int(start_rgb[2] + (end_rgb[2] - start_rgb[2]) * ratio)
+        
+        gradient_text.append(line + "\n", style=f"bold rgb({r},{g},{b})")
+    return gradient_text
+
+styled_tomato = apply_vertical_gradient(tomato_art)
+
+
+def print_ascii_art():
+    console.print(
+        Panel(
+            styled_tomato, 
+            expand=False, 
+            border_style="bright_red", 
+            title="[bold red] ⋆｡‧˚ʚ🍅ɞ˚‧｡⋆ [/]"
+        )
+    )
+
+        
 
 
 async def main():
