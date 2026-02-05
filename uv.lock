@@ -3105,17 +3105,19 @@ wheels = [
 
 [[package]]
 name = "tomato-review"
-version = "0.1.5.3"
+version = "0.1.5.4"
 source = { editable = "." }
 dependencies = [
     { name = "filelock" },
     { name = "openjiuwen" },
+    { name = "rich" },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "filelock", specifier = ">=3.10.2" },
     { name = "openjiuwen", specifier = ">=0.1.4" },
+    { name = "rich" },
 ]
 
 [[package]]

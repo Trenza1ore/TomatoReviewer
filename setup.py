@@ -26,7 +26,7 @@ try:
 
     # Update dependencies from pyproject.toml to requirements.txt and tomato_reviw/version.txt
     dependencies = pyproject_content["project"]["dependencies"]
-    requirements_content = ["# Auto-generated via setup.py, based on pyproject.toml"] + dependencies
+    requirements_content = [f"# Auto-generated for tomato-review {VERSION}, based on pyproject.toml"] + dependencies
     requirement.write_text("\n".join(requirements_content))
     version_file.write_text(VERSION)
 except ImportError as e:
