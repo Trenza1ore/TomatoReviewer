@@ -6,7 +6,7 @@
 
 ![banner](assets/banner.jpg)
 
-**Current Version: `0.1.5.1 (openJiuwen>=0.1.4)`** 
+**Current Version: `0.1.5.2 (openJiuwen>=0.1.4)`** 
 
 ## Overview
 
@@ -29,9 +29,9 @@ This project serves as a reference implementation, demonstrating how to build an
 TomatoReviewer is built on top of:
 
 - **[openJiuwen](https://gitcode.com/openJiuwen/agent-core)**: Agent framework and knowledge base system. The PEP knowledge base feature leverages openJiuwen's knowledge base framework for vector storage, embeddings, and hybrid search capabilities.
-- **pylint**: Static code analysis
-- **ruff**: Fast Python linter and formatter
-- **mypy**: Static type checker
+- **[pylint](https://pylint.readthedocs.io/en/stable/)**: Static code analysis
+- **[ruff](https://docs.astral.sh/ruff/)**: A fast Python linter and formatter
+- **[mypy](https://www.mypy-lang.org)**: Static type checker
 
 ## How It Works
 
@@ -131,6 +131,7 @@ tomato-review:
   embedding_model_name: "your-embedding-model"  # Update with your embedding model name
   embedding_api_key: "sk-********************"  # Update with your API key
   embedding_base_url: "http://your-embedding-server/v1/embeddings"  # Update with your embedding API URL
+  embedding_dimension: null  # Optional: specify embedding dimension (e.g., 768, 1536) when provided
   chunk_size: 512
   chunk_overlap: 128
   index_type: "hybrid"

@@ -283,6 +283,7 @@ Examples:
         "embedding_model_name": "EMBEDDING_MODEL",
         "embedding_api_key": "EMBEDDING_API_KEY",
         "embedding_base_url": "EMBEDDING_BASE_URL",
+        "embedding_dimension": "EMBEDDING_DIMENSION",
         "chunk_size": "PEP_CHUNK_SIZE",
         "chunk_overlap": "PEP_CHUNK_OVERLAP",
         "index_type": "PEP_INDEX_TYPE",

@@ -106,6 +106,11 @@ def get_kb_config(config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     kb_config["chunk_size"] = int(config.get("chunk_size") or os.getenv("PEP_CHUNK_SIZE", "512"))
     kb_config["chunk_overlap"] = int(config.get("chunk_overlap") or os.getenv("PEP_CHUNK_OVERLAP", "128"))
     kb_config["index_type"] = config.get("index_type") or os.getenv("PEP_INDEX_TYPE", "hybrid")
+    kb_config["embedding_dimension"] = ""
+
+    embedding_dim = config.get("embedding_dimension") or os.getenv("EMBEDDING_DIMENSION")
+    if isinstance(embedding_dim, str) and embedding_dim.strip().isdecimal():
+        kb_config["embedding_dimension"] = embedding_dim.strip()
 
     return kb_config
 

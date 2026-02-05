@@ -6,7 +6,7 @@
 
 ![banner](assets/banner.jpg)
 
-**当前版本：`0.1.5.1 (openJiuwen>=0.1.4)`** 
+**当前版本：`0.1.5.2 (openJiuwen>=0.1.4)`** 
 
 ## 概述
 
@@ -29,9 +29,9 @@ TomatoReviewer 使用由大语言模型（LLM）驱动的多智能体架构来�
 TomatoReviewer 基于以下技术构建：
 
 - **[openJiuwen](https://gitcode.com/openJiuwen/agent-core)**：智能体框架和知识库系统。PEP 知识库功能利用 openJiuwen 的知识库框架提供向量存储、语义向量模型和混合搜索功能。
-- **pylint**：静态代码分析
-- **ruff**：快速的 Python 代码检查器和格式化工具
-- **mypy**：静态类型检查器
+- **[pylint](https://pylint.readthedocs.io/en/stable/)**：静态代码分析
+- **[ruff](https://docs.astral.sh/ruff/)**：Python代码检查与格式化工具
+- **[mypy](https://www.mypy-lang.org)**：静态类型检查
 
 ## 工作原理
 
@@ -131,6 +131,7 @@ tomato-review:
   embedding_model_name: "your-embedding-model"  # 更新为您的语义向量模型名称
   embedding_api_key: "sk-********************"  # 更新为您的 API 密钥
   embedding_base_url: "http://your-embedding-server/v1/embeddings"  # 更新为您的语义向量 API URL
+  embedding_dimension: null  # 可选：指定语义向量维度（例如：768、1536）
   chunk_size: 512
   chunk_overlap: 128
   index_type: "hybrid"
