@@ -120,3 +120,6 @@ tomato_review/*.lock
 
 # upstream package for testing purpose
 openjiuwen/
+
+# MacOS stuffs
+.DS_Store
