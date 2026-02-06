@@ -6,8 +6,7 @@
 
 ![banner](assets/banner.jpg)
 
-**当前版本：`0.1.5.4 (openJiuwen>=0.1.4)`** 
-![logo](assets/tomato.png)
+**当前版本：`0.1.5.4 (openJiuwen>=0.1.4)`**
 
 ## 概述
 
@@ -105,6 +104,8 @@ tomato-review --build
 # 使用自定义配置文件
 tomato-review *.py --config-file /path/to/config.yaml
 ```
+
+![screenshot](assets/screenshot.png)
 
 ### 命令行选项
 
