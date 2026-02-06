@@ -15,11 +15,11 @@ from typing import Any, Dict, List, Optional
 
 from openjiuwen.core.foundation.tool import tool
 from openjiuwen.core.runner import Runner
+from openjiuwen.core.session.agent import create_agent_session
 from openjiuwen.core.single_agent.agents.react_agent import ReActAgent, ReActAgentConfig
 from openjiuwen.core.single_agent.schema.agent_card import AgentCard
 from tqdm import tqdm
 
-from tomato_review.agent.session import AgentSession
 from tomato_review.agent.utils import (
     configure_from_env,
     extract_reasoning_content,
@@ -1152,7 +1152,7 @@ Important:
         if session is None:
             import uuid
 
-            session = AgentSession(session_id=f"fix_{uuid.uuid4().hex[:8]}")
+            session = create_agent_session(session_id=f"fix_{uuid.uuid4().hex[:8]}", card=self.card)
 
         try:
             # Use parent's ReAct loop - LLM will reason and use tools

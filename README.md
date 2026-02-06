@@ -6,8 +6,7 @@
 
 ![banner](assets/banner.jpg)
 
-**Current Version: `0.1.5.4 (openJiuwen>=0.1.4)`** 
-![logo](assets/tomato.png)
+**Current Version: `0.1.5.5 (openJiuwen>=0.1.4)`**
 
 ## Overview
 
@@ -105,6 +104,8 @@ tomato-review --build
 # Use custom config file
 tomato-review *.py --config-file /path/to/config.yaml
 ```
+
+![screenshot](assets/screenshot.png)
 
 ### Command-line Options
 
