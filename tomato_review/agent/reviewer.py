@@ -17,6 +17,7 @@ from openjiuwen import __version__ as openjiuwen_version
 from openjiuwen.core.common.exception.errors import BaseError
 from openjiuwen.core.foundation.tool import tool
 from openjiuwen.core.runner import Runner
+from openjiuwen.core.session.agent import create_agent_session
 from openjiuwen.core.single_agent.agents.react_agent import ReActAgent, ReActAgentConfig
 from openjiuwen.core.single_agent.schema.agent_card import AgentCard
 from tqdm import tqdm
@@ -31,7 +32,6 @@ except ImportError:
 from tomato_review import DEBUG_MODE
 from tomato_review.agent.fixer import FixerAgent
 from tomato_review.agent.searcher import SearcherAgent
-from tomato_review.agent.session import AgentSession
 from tomato_review.agent.utils import (
     backup_file,
     compare_version,
@@ -827,13 +827,13 @@ Be thorough, accurate, and focus on Python best practices."""
         if session is None:
             import uuid
 
-            session = AgentSession(session_id=f"review_{uuid.uuid4().hex[:8]}")
+            session = create_agent_session(session_id=f"review_{uuid.uuid4().hex[:8]}", card=self.card)
 
         # Get or create model context
         # For version < 0.1.5, use context_engine.create_context
         # For version >= 0.1.5, use _init_context
         if compare_version(openjiuwen_version, "0.1.5"):
-            context = await self._init_context(session)
+            context = await getattr(self, "_init_context")(session)
         else:
             context = await self.context_engine.create_context(session=session)
 
@@ -981,7 +981,7 @@ Format your response as a detailed markdown report."""
                 # Create a session (required by upstream API)
                 import uuid
 
-                session = AgentSession(session_id=f"review_{uuid.uuid4().hex[:8]}")
+                session = create_agent_session(session_id=f"review_{uuid.uuid4().hex[:8]}", card=self.card)
 
                 # Use our overridden invoke method which cleans up reasoning
                 llm_result = await self.invoke({"query": user_query}, session=session)

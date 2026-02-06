@@ -10,11 +10,11 @@ from typing import Any, Dict, Optional
 
 from openjiuwen.core.foundation.tool import tool
 from openjiuwen.core.runner import Runner
+from openjiuwen.core.session.agent import create_agent_session
 from openjiuwen.core.single_agent.agents.react_agent import ReActAgent, ReActAgentConfig
 from openjiuwen.core.single_agent.schema.agent_card import AgentCard
 from tqdm import tqdm
 
-from tomato_review.agent.session import AgentSession
 from tomato_review.agent.utils import configure_from_env, extract_reasoning_content, get_env_var, get_input_params
 from tomato_review.pep_kb.pep_knowledge_base import PEPKnowledgeBase, create_pep_knowledge_base
 
@@ -287,7 +287,7 @@ Be thorough but concise. Focus on actionable recommendations based on official P
         if session is None:
             import uuid
 
-            session = AgentSession(session_id=f"search_{uuid.uuid4().hex[:8]}")
+            session = create_agent_session(session_id=f"search_{uuid.uuid4().hex[:8]}", card=self.card)
 
         # Use parent's ReAct loop - LLM will reason and use tools
         result = await super().invoke({"query": user_query}, session=session)
