@@ -7,6 +7,7 @@
 ![banner](assets/banner.jpg)
 
 **当前版本：`0.1.5.4 (openJiuwen>=0.1.4)`** 
+![logo](assets/tomato.png)
 
 ## 概述
 

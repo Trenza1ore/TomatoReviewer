@@ -7,6 +7,7 @@
 ![banner](assets/banner.jpg)
 
 **Current Version: `0.1.5.4 (openJiuwen>=0.1.4)`** 
+![logo](assets/tomato.png)
 
 ## Overview
 
